@@ -1,4 +1,4 @@
-name: Test CUDA
+name: Test GPU Rust
 
 on:
   workflow_call:
@@ -9,12 +9,12 @@ on:
         type: string
 
 concurrency:
-  group: test-cuda-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_number || github.ref }}
+  group: test-gpu-rust-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test-cuda:
-    name: Test CUDA (cuda12.6-py3.10)
+  test-gpu-rust:
+    name: Test GPU Rust (cuda12.6)
     uses: pytorch/test-infra/.github/workflows/linux_job_v2.yml@main
     strategy:
       fail-fast: true
@@ -39,20 +39,20 @@ jobs:
         # Setup test environment
         setup_test_environment
 
+        # Install Rust
+        setup_rust_toolchain
+
+        # Install System dependencies
+        install_system_dependencies
+
         # Setup Tensor Engine dependencies
         setup_tensor_engine
 
         export CUDA_LIB_DIR=/usr/lib64
 
-        # Install the built wheel from artifact
-        install_wheel_from_artifact
+        # Setup PyTorch with C++ headers using common-setup utility
+        setup_pytorch_with_headers "${{ matrix.gpu-arch-version }}" "${{ matrix.torch-spec }}"
 
-        # tests the type_assert statements in test_python_actor are correct
-        # pyre currently does not check these assertions
-        pyright python/tests/test_python_actors.py
-
-        # Run CUDA tests
-        LC_ALL=C pytest python/tests/ -s -v -m "not oss_skip"
-        # TODO(meriksen): temporarily disabled to unblock lands while debugging
-        # mock CUDA issues on the OSS setup
-        # python python/tests/test_mock_cuda.py
+        # Run GPU Rust tests
+        echo "Running OSS Rust tests..."
+        cargo test -p monarch_rdma
