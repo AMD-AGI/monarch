@@ -1,3 +1,34 @@
+# rdmaxcel-sys-hip
+The folder should mirror the CUDA rdmaxcel-sys implementation and provide AMD/RoCM support.
+
+## Hipify
+The AMD/RoCM implementation include files(e.g. .hip files) which are generated via hipifying original CUDA files(e.g. .cu) files:
+https://rocm.docs.amd.com/projects/HIPIFY/en/latest/index.html.
+
+## Compilation via hipcc
+To run simple test like ```src/test_rdmaxcel.c```:
+```c
+ # compiling objects file
+ hipcc -c -I /opt/rocm-6.3.4/include/ -D__HIP_PLATFORM_AMD__ monarch/rdmaxcel-sys-hip/src/rdmaxcel.cu.hip -o rdmaxcel.cu.hip.o
+ hipcc -c -I /opt/rocm-6.3.4/include/ -D__HIP_PLATFORM_AMD__ monarch/rdmaxcel-sys-hip/src/test_rdmaxcel.c -o test_rdmaxcel.o
+ 
+ # compiling executable, linking with objects files
+ hipcc -o test_rdmaxcel test_rdmaxcel.o rdmaxcel.cu.hip.o
+ 
+ # run the executable
+ ./test_rdmaxcel
+ cu_db_ring function address: 0x200a40
+
+```
+
+
+
+
+
+
+
+
+
 # RDMaxcel
 
 RDMaxcel (RDMA Acceleration) is a library that provides a unified interface for RDMA operations from both CPU and GPU, enabling seamless RDMA communication regardless of whether the caller is host code or device hardware.
