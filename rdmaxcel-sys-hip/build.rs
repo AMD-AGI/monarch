@@ -297,8 +297,8 @@ fn main() {
                 let hip_lib_path = format!("{}/librdmaxcel_hip.a", hip_build_dir);
 
                 // Use hipcc to compile the HIP file
-                // TODO: hipcc does not support arguments including --compiler-options and --expt-extended-lambda
-                // confirm if it is OK to remove them or need to find hipcc counterparts
+                // hipcc does not support arguments including --compiler-options and --expt-extended-lambda
+                // --compiler-options is replaced with -Xcompiler
                 let hipcc_output = std::process::Command::new(&hipcc_path)
                     .args(&[
                         "-c",
@@ -306,6 +306,7 @@ fn main() {
                         "-o",
                         &hip_obj_path,
                         //"--compiler-options",
+                        "-Xcompiler",
                         "-fPIC",
                         "-std=c++20",
                         //"--expt-extended-lambda",
