@@ -16,5 +16,6 @@ members = [
     "monarch_rdma",
     "nccl-sys",
     "rdmaxcel-sys",
+    "rdmaxcel-sys-hip",
     "torch-sys",
 ]
