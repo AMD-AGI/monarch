@@ -298,7 +298,7 @@ fn main() {
 
                 // Use hipcc to compile the HIP file
                 // hipcc does not support arguments including --compiler-options and --expt-extended-lambda
-                // --compiler-options is replaced with -Xcompiler
+                // --compiler-options is supposed to be replaced with -Xcompiler
                 let hipcc_output = std::process::Command::new(&hipcc_path)
                     .args(&[
                         "-c",
@@ -306,7 +306,6 @@ fn main() {
                         "-o",
                         &hip_obj_path,
                         //"--compiler-options",
-                        "-Xcompiler",
                         "-fPIC",
                         "-std=c++20",
                         //"--expt-extended-lambda",
