@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 /*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
  * All rights reserved.
