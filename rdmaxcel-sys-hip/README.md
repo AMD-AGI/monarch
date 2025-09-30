@@ -9,6 +9,7 @@ https://rocm.docs.amd.com/projects/HIPIFY/en/latest/index.html.
 To run simple test like ```src/test_rdmaxcel.c```:
 ```c
  # compiling objects file
+
  hipcc -c -I /opt/rocm-6.3.4/include/ -D__HIP_PLATFORM_AMD__ monarch/rdmaxcel-sys-hip/src/rdmaxcel.hip -o rdmaxcel.hip.o
  hipcc -c -I /opt/rocm-6.3.4/include/ -D__HIP_PLATFORM_AMD__ monarch/rdmaxcel-sys-hip/src/test_rdmaxcel.c -o test_rdmaxcel.o
  
