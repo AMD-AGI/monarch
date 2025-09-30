@@ -1,0 +1,1571 @@
+warning: /home/chcai/monarch/monarch_simulator/Cargo.toml: `edition` is set on library `monarch_simulator_lib` which is deprecated
+warning: /home/chcai/monarch/hyperactor_macros/Cargo.toml: `edition` is set on library `hyperactor_macros` which is deprecated
+warning: /home/chcai/monarch/erased_lifetime/Cargo.toml: `edition` is set on library `erased_lifetime` which is deprecated
+warning: /home/chcai/monarch/controller/Cargo.toml: `edition` is set on library `controller` which is deprecated
+warning: /home/chcai/monarch/controller/Cargo.toml: `edition` is set on binary `controller_bin` which is deprecated
+warning: /home/chcai/monarch/serde_multipart/Cargo.toml: `edition` is set on library `serde_multipart` which is deprecated
+warning: /home/chcai/monarch/monarch_hyperactor/Cargo.toml: `edition` is set on binary `process_allocator` which is deprecated
+warning: /home/chcai/monarch/ndslice/Cargo.toml: `edition` is set on library `ndslice` which is deprecated
+warning: /home/chcai/monarch/hyperactor/Cargo.toml: `edition` is set on library `hyperactor` which is deprecated
+warning: /home/chcai/monarch/hyperactor/Cargo.toml: `edition` is set on binary `hyperactor_example_channel` which is deprecated
+warning: /home/chcai/monarch/hyperactor/Cargo.toml: `edition` is set on binary `hyperactor_example_derive` which is deprecated
+warning: /home/chcai/monarch/hyperactor/Cargo.toml: `edition` is set on binary `hyperactor_example_stream` which is deprecated
+warning: /home/chcai/monarch/hyperactor/Cargo.toml: `edition` is set on binary `hyperactor_host_test_bootstrap` which is deprecated
+warning: /home/chcai/monarch/hyperactor/Cargo.toml: file `/home/chcai/monarch/hyperactor/benches/main.rs` found to be present in multiple build targets:
+  * `bin` target `channel_benchmarks`
+  * `bench` target `main`
+warning: /home/chcai/monarch/hyperactor_multiprocess/Cargo.toml: `edition` is set on library `hyperactor_multiprocess` which is deprecated
+warning: /home/chcai/monarch/hyperactor_mesh/Cargo.toml: `edition` is set on library `hyperactor_mesh` which is deprecated
+warning: /home/chcai/monarch/hyperactor_mesh/Cargo.toml: `edition` is set on binary `hyperactor_mesh_test_bootstrap` which is deprecated
+warning: /home/chcai/monarch/hyperactor_mesh/Cargo.toml: `edition` is set on binary `hyperactor_mesh_test_remote_process_alloc` which is deprecated
+warning: /home/chcai/monarch/hyperactor_mesh/Cargo.toml: `edition` is set on binary `hyperactor_mesh_test_remote_process_allocator` which is deprecated
+warning: /home/chcai/monarch/hyperactor_mesh/Cargo.toml: `edition` is set on binary `process_allocator_test_bin` which is deprecated
+warning: /home/chcai/monarch/hyperactor_mesh/Cargo.toml: `edition` is set on binary `process_allocator_test_bootstrap` which is deprecated
+warning: /home/chcai/monarch/hyperactor_mesh/Cargo.toml: file `/home/chcai/monarch/hyperactor_mesh/benches/main.rs` found to be present in multiple build targets:
+  * `bin` target `actor_mesh_benchmarks`
+  * `bench` target `main`
+warning: /home/chcai/monarch/monarch_conda/Cargo.toml: `edition` is set on library `monarch_conda` which is deprecated
+warning: /home/chcai/monarch/monarch_conda/Cargo.toml: `edition` is set on binary `conda_sync_cli` which is deprecated
+warning: /home/chcai/monarch/hyperactor_telemetry/Cargo.toml: `edition` is set on library `hyperactor_telemetry` which is deprecated
+warning: /home/chcai/monarch/monarch_rdma/Cargo.toml: `edition` is set on library `monarch_rdma` which is deprecated
+warning: /home/chcai/monarch/hyperactor_mesh_macros/Cargo.toml: `edition` is set on library `hyperactor_mesh_macros` which is deprecated
+warning: /home/chcai/monarch/timed_test/Cargo.toml: `edition` is set on library `timed_test` which is deprecated
+warning: /home/chcai/monarch/preempt_rwlock/Cargo.toml: `edition` is set on library `preempt_rwlock` which is deprecated
+warning: /home/chcai/monarch/monarch_rdma/extension/Cargo.toml: `edition` is set on library `monarch_rdma_extension` which is deprecated
+   Compiling rdmaxcel-sys-hip v0.0.1 (/home/chcai/monarch/rdmaxcel-sys-hip)
+warning: rdmaxcel-sys-hip@0.0.1: In file included from /home/chcai/monarch/rdmaxcel-sys-hip/src/rdmaxcel.cpp:11:
+warning: rdmaxcel-sys-hip@0.0.1: /opt/venv/lib/python3.10/site-packages/torch/include/c10/hip/HIPCachingAllocator.h: In member function 'virtual void c10::hip::HIPCachingAllocator::HIPAllocator::createOrIncrefPool(c10::DeviceIndex, c10::hip::MempoolId_t, c10::hip::HIPCachingAllocator::HIPAllocator*)':
+warning: rdmaxcel-sys-hip@0.0.1: /opt/venv/lib/python3.10/site-packages/torch/include/c10/hip/HIPCachingAllocator.h:246:21: warning: unused parameter 'allocator' [-Wunused-parameter]
+warning: rdmaxcel-sys-hip@0.0.1:   246 |       HIPAllocator* allocator = nullptr) {
+warning: rdmaxcel-sys-hip@0.0.1:       |       ~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~
+warning: rdmaxcel-sys-hip@0.0.1: /opt/venv/lib/python3.10/site-packages/torch/include/c10/hip/HIPCachingAllocator.h: In member function 'virtual void c10::hip::HIPCachingAllocator::HIPAllocator::setUseOnOOM(c10::DeviceIndex, c10::hip::MempoolId_t)':
+warning: rdmaxcel-sys-hip@0.0.1: /opt/venv/lib/python3.10/site-packages/torch/include/c10/hip/HIPCachingAllocator.h:253:45: warning: unused parameter 'device' [-Wunused-parameter]
+warning: rdmaxcel-sys-hip@0.0.1:   253 |   virtual void setUseOnOOM(c10::DeviceIndex device, MempoolId_t mempool_id) {
+warning: rdmaxcel-sys-hip@0.0.1:       |                            ~~~~~~~~~~~~~~~~~^~~~~~
+warning: rdmaxcel-sys-hip@0.0.1: /opt/venv/lib/python3.10/site-packages/torch/include/c10/hip/HIPCachingAllocator.h:253:65: warning: unused parameter 'mempool_id' [-Wunused-parameter]
+warning: rdmaxcel-sys-hip@0.0.1:   253 |   virtual void setUseOnOOM(c10::DeviceIndex device, MempoolId_t mempool_id) {
+warning: rdmaxcel-sys-hip@0.0.1:       |                                                     ~~~~~~~~~~~~^~~~~~~~~~
+warning: rdmaxcel-sys-hip@0.0.1: /opt/venv/lib/python3.10/site-packages/torch/include/c10/hip/HIPCachingAllocator.h: In member function 'virtual void c10::hip::HIPCachingAllocator::HIPAllocator::pushCompileContext(std::string&)':
+warning: rdmaxcel-sys-hip@0.0.1: /opt/venv/lib/python3.10/site-packages/torch/include/c10/hip/HIPCachingAllocator.h:289:48: warning: unused parameter 'md' [-Wunused-parameter]
+warning: rdmaxcel-sys-hip@0.0.1:   289 |   virtual void pushCompileContext(std::string& md) {}
+warning: rdmaxcel-sys-hip@0.0.1:       |                                   ~~~~~~~~~~~~~^~
+warning: type `__off_t` should have an upper camel case name
+  --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:36:10
+   |
+36 | pub type __off_t = ::std::os::raw::c_long;
+   |          ^^^^^^^ help: convert the identifier to upper camel case: `OffT`
+   |
+   = note: `#[warn(non_camel_case_types)]` on by default
+
+warning: type `__off64_t` should have an upper camel case name
+  --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:37:10
+   |
+37 | pub type __off64_t = ::std::os::raw::c_long;
+   |          ^^^^^^^^^ help: convert the identifier to upper camel case: `Off64T`
+
+warning: type `__time_t` should have an upper camel case name
+  --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:38:10
+   |
+38 | pub type __time_t = ::std::os::raw::c_long;
+   |          ^^^^^^^^ help: convert the identifier to upper camel case: `TimeT`
+
+warning: type `__syscall_slong_t` should have an upper camel case name
+  --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:39:10
+   |
+39 | pub type __syscall_slong_t = ::std::os::raw::c_long;
+   |          ^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `SyscallSlongT`
+
+warning: type `off_t` should have an upper camel case name
+  --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:40:10
+   |
+40 | pub type off_t = __off_t;
+   |          ^^^^^ help: convert the identifier to upper camel case: `OffT`
+
+warning: type `__pthread_list_t` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:121:10
+    |
+121 | pub type __pthread_list_t = __pthread_internal_list;
+    |          ^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `PthreadListT`
+
+warning: type `hipError_t` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:395:10
+    |
+395 | pub type hipError_t = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^ help: convert the identifier to upper camel case: `HipErrorT`
+
+warning: type `_IO_lock_t` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:412:10
+    |
+412 | pub type _IO_lock_t = ::std::os::raw::c_void;
+    |          ^^^^^^^^^^ help: convert the identifier to upper camel case: `IoLockT`
+
+warning: type `__u8` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:507:10
+    |
+507 | pub type __u8 = ::std::os::raw::c_uchar;
+    |          ^^^^ help: convert the identifier to upper camel case: `U8`
+
+warning: type `__u16` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:508:10
+    |
+508 | pub type __u16 = ::std::os::raw::c_ushort;
+    |          ^^^^^ help: convert the identifier to upper camel case: `U16`
+
+warning: type `__u32` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:509:10
+    |
+509 | pub type __u32 = ::std::os::raw::c_uint;
+    |          ^^^^^ help: convert the identifier to upper camel case: `U32`
+
+warning: type `__u64` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:510:10
+    |
+510 | pub type __u64 = ::std::os::raw::c_ulonglong;
+    |          ^^^^^ help: convert the identifier to upper camel case: `U64`
+
+warning: type `__be16` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:511:10
+    |
+511 | pub type __be16 = __u16;
+    |          ^^^^^^ help: convert the identifier to upper camel case: `Be16`
+
+warning: type `__be32` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:512:10
+    |
+512 | pub type __be32 = __u32;
+    |          ^^^^^^ help: convert the identifier to upper camel case: `Be32`
+
+warning: type `__be64` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:513:10
+    |
+513 | pub type __be64 = __u64;
+    |          ^^^^^^ help: convert the identifier to upper camel case: `Be64`
+
+warning: type `ib_uverbs_flow_action_esp_keymat` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:515:10
+    |
+515 | pub type ib_uverbs_flow_action_esp_keymat = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbUverbsFlowActionEspKeymat`
+
+warning: type `ib_uverbs_flow_action_esp_replay` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:518:10
+    |
+518 | pub type ib_uverbs_flow_action_esp_replay = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbUverbsFlowActionEspReplay`
+
+warning: type `ibv_gid_type` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:672:10
+    |
+672 | pub type ibv_gid_type = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvGidType`
+
+warning: type `ibv_node_type` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:713:10
+    |
+713 | pub type ibv_node_type = ::std::os::raw::c_int;
+    |          ^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvNodeType`
+
+warning: type `ibv_transport_type` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:720:10
+    |
+720 | pub type ibv_transport_type = ::std::os::raw::c_int;
+    |          ^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvTransportType`
+
+warning: type `ibv_device_cap_flags` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:745:10
+    |
+745 | pub type ibv_device_cap_flags = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvDeviceCapFlags`
+
+warning: type `ibv_fork_status` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:749:10
+    |
+749 | pub type ibv_fork_status = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvForkStatus`
+
+warning: type `ibv_atomic_cap` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:753:10
+    |
+753 | pub type ibv_atomic_cap = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvAtomicCap`
+
+warning: type `ibv_dm_mask` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:773:10
+    |
+773 | pub type ibv_dm_mask = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvDmMask`
+
+warning: type `ibv_odp_transport_cap_bits` should have an upper camel case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:976:10
+    |
+976 | pub type ibv_odp_transport_cap_bits = ::std::os::raw::c_uint;
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvOdpTransportCapBits`
+
+warning: type `ibv_odp_general_caps` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1014:10
+     |
+1014 | pub type ibv_odp_general_caps = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvOdpGeneralCaps`
+
+warning: type `ibv_rx_hash_function_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1031:10
+     |
+1031 | pub type ibv_rx_hash_function_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvRxHashFunctionFlags`
+
+warning: type `ibv_rx_hash_fields` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1042:10
+     |
+1042 | pub type ibv_rx_hash_fields = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvRxHashFields`
+
+warning: type `ibv_raw_packet_caps` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1090:10
+     |
+1090 | pub type ibv_raw_packet_caps = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvRawPacketCaps`
+
+warning: type `ibv_tm_cap_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1092:10
+     |
+1092 | pub type ibv_tm_cap_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvTmCapFlags`
+
+warning: type `ibv_pci_atomic_op_size` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1135:10
+     |
+1135 | pub type ibv_pci_atomic_op_size = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvPciAtomicOpSize`
+
+warning: type `ibv_mtu` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1228:10
+     |
+1228 | pub type ibv_mtu = ::std::os::raw::c_uint;
+     |          ^^^^^^^ help: convert the identifier to upper camel case: `IbvMtu`
+
+warning: type `_bindgen_ty_60` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1241:10
+     |
+1241 | pub type _bindgen_ty_60 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy60`
+
+warning: type `ibv_port_cap_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1342:12
+     |
+1342 | pub struct ibv_port_cap_flags(pub ::std::os::raw::c_uint);
+     |            ^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvPortCapFlags`
+
+warning: type `ibv_port_cap_flags2` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1350:10
+     |
+1350 | pub type ibv_port_cap_flags2 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvPortCapFlags2`
+
+warning: type `ibv_event_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1453:10
+     |
+1453 | pub type ibv_event_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvEventType`
+
+warning: type `_bindgen_ty_61` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1565:10
+     |
+1565 | pub type _bindgen_ty_61 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy61`
+
+warning: type `ibv_create_cq_wc_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1578:10
+     |
+1578 | pub type ibv_create_cq_wc_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvCreateCqWcFlags`
+
+warning: type `_bindgen_ty_62` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1580:10
+     |
+1580 | pub type _bindgen_ty_62 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy62`
+
+warning: type `_bindgen_ty_63` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1582:10
+     |
+1582 | pub type _bindgen_ty_63 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy63`
+
+warning: type `ibv_wc_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1632:12
+     |
+1632 | pub struct ibv_wc_flags(pub ::std::os::raw::c_uint);
+     |            ^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvWcFlags`
+
+warning: type `ibv_access_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1712:12
+     |
+1712 | pub struct ibv_access_flags(pub ::std::os::raw::c_uint);
+     |            ^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvAccessFlags`
+
+warning: type `ibv_xrcd_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1800:10
+     |
+1800 | pub type ibv_xrcd_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvXrcdInitAttrMask`
+
+warning: type `ibv_rereg_mr_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1843:10
+     |
+1843 | pub type ibv_rereg_mr_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvReregMrFlags`
+
+warning: type `ibv_mw_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1878:10
+     |
+1878 | pub type ibv_mw_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvMwType`
+
+warning: type `ibv_rate` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:1995:10
+     |
+1995 | pub type ibv_rate = ::std::os::raw::c_uint;
+     |          ^^^^^^^^ help: convert the identifier to upper camel case: `IbvRate`
+
+warning: type `ibv_srq_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2040:10
+     |
+2040 | pub type ibv_srq_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvSrqAttrMask`
+
+warning: type `ibv_srq_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2086:10
+     |
+2086 | pub type ibv_srq_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvSrqType`
+
+warning: type `ibv_srq_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2093:10
+     |
+2093 | pub type ibv_srq_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvSrqInitAttrMask`
+
+warning: type `ibv_wq_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2151:10
+     |
+2151 | pub type ibv_wq_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvWqType`
+
+warning: type `ibv_wq_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2154:10
+     |
+2154 | pub type ibv_wq_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvWqInitAttrMask`
+
+warning: type `ibv_wq_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2160:10
+     |
+2160 | pub type ibv_wq_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvWqFlags`
+
+warning: type `ibv_wq_state` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2207:10
+     |
+2207 | pub type ibv_wq_state = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvWqState`
+
+warning: type `ibv_wq_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2212:10
+     |
+2212 | pub type ibv_wq_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvWqAttrMask`
+
+warning: type `ibv_ind_table_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2276:10
+     |
+2276 | pub type ibv_ind_table_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvIndTableInitAttrMask`
+
+warning: type `ibv_qp_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2386:10
+     |
+2386 | pub type ibv_qp_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvQpInitAttrMask`
+
+warning: type `ibv_qp_create_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2392:10
+     |
+2392 | pub type ibv_qp_create_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvQpCreateFlags`
+
+warning: type `ibv_qp_create_send_ops_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2404:10
+     |
+2404 | pub type ibv_qp_create_send_ops_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvQpCreateSendOpsFlags`
+
+warning: type `ibv_qp_open_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2506:10
+     |
+2506 | pub type ibv_qp_open_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvQpOpenAttrMask`
+
+warning: type `ibv_qp_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2634:12
+     |
+2634 | pub struct ibv_qp_attr_mask(pub ::std::os::raw::c_uint);
+     |            ^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvQpAttrMask`
+
+warning: type `ibv_mig_state` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2649:10
+     |
+2649 | pub type ibv_mig_state = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvMigState`
+
+warning: type `ibv_send_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:2822:12
+     |
+2822 | pub struct ibv_send_flags(pub ::std::os::raw::c_uint);
+     |            ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvSendFlags`
+
+warning: type `ibv_ops_wr_opcode` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:3177:10
+     |
+3177 | pub type ibv_ops_wr_opcode = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvOpsWrOpcode`
+
+warning: type `ibv_ops_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:3180:10
+     |
+3180 | pub type ibv_ops_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvOpsFlags`
+
+warning: type `ibv_cq_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:3793:10
+     |
+3793 | pub type ibv_cq_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvCqAttrMask`
+
+warning: type `ibv_flow_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:3850:10
+     |
+3850 | pub type ibv_flow_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvFlowFlags`
+
+warning: type `ibv_flow_attr_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:3855:10
+     |
+3855 | pub type ibv_flow_attr_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvFlowAttrType`
+
+warning: type `ibv_flow_spec_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:3871:10
+     |
+3871 | pub type ibv_flow_spec_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvFlowSpecType`
+
+warning: type `ibv_flow_action_esp_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:4613:10
+     |
+4613 | pub type ibv_flow_action_esp_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvFlowActionEspMask`
+
+warning: type `_bindgen_ty_64` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:4686:10
+     |
+4686 | pub type _bindgen_ty_64 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy64`
+
+warning: type `ibv_cq_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:4943:10
+     |
+4943 | pub type ibv_cq_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvCqInitAttrMask`
+
+warning: type `ibv_create_cq_attr_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:4946:10
+     |
+4946 | pub type ibv_create_cq_attr_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvCreateCqAttrFlags`
+
+warning: type `ibv_parent_domain_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:4991:10
+     |
+4991 | pub type ibv_parent_domain_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvParentDomainInitAttrMask`
+
+warning: type `ibv_counter_description` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5081:10
+     |
+5081 | pub type ibv_counter_description = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvCounterDescription`
+
+warning: type `ibv_read_counters_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5111:10
+     |
+5111 | pub type ibv_read_counters_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvReadCountersFlags`
+
+warning: type `ibv_values_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5114:10
+     |
+5114 | pub type ibv_values_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvValuesMask`
+
+warning: type `ibv_rereg_mr_err_code` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5264:10
+     |
+5264 | pub type ibv_rereg_mr_err_code = ::std::os::raw::c_int;
+     |          ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvReregMrErrCode`
+
+warning: type `ibv_tmh_op` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5423:10
+     |
+5423 | pub type ibv_tmh_op = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^ help: convert the identifier to upper camel case: `IbvTmhOp`
+
+warning: type `mlx5_ib_uapi_flow_table_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5461:10
+     |
+5461 | pub type mlx5_ib_uapi_flow_table_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5IbUapiFlowTableType`
+
+warning: type `mlx5_ib_uapi_flow_action_packet_reformat_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5470:10
+     |
+5470 | pub type mlx5_ib_uapi_flow_action_packet_reformat_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5IbUapiFlowActionPacketReformatType`
+
+warning: type `mlx5_ib_uapi_dm_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5491:10
+     |
+5491 | pub type mlx5_ib_uapi_dm_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5IbUapiDmType`
+
+warning: type `mlx5_ib_uapi_devx_create_event_channel_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5494:10
+     |
+5494 | pub type mlx5_ib_uapi_devx_create_event_channel_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5IbUapiDevxCreateEventChannelFlags`
+
+warning: type `_bindgen_ty_65` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5514:10
+     |
+5514 | pub type _bindgen_ty_65 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy65`
+
+warning: type `mlx5dv_context_comp_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5529:10
+     |
+5529 | pub type mlx5dv_context_comp_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvContextCompMask`
+
+warning: type `mlx5dv_tunnel_offloads` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5615:10
+     |
+5615 | pub type mlx5dv_tunnel_offloads = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvTunnelOffloads`
+
+warning: type `mlx5dv_flow_action_cap_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5621:10
+     |
+5621 | pub type mlx5dv_flow_action_cap_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvFlowActionCapFlags`
+
+warning: type `mlx5dv_sig_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5624:10
+     |
+5624 | pub type mlx5dv_sig_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigType`
+
+warning: type `mlx5dv_sig_prot_caps` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5627:10
+     |
+5627 | pub type mlx5dv_sig_prot_caps = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigProtCaps`
+
+warning: type `mlx5dv_sig_t10dif_bg_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5630:10
+     |
+5630 | pub type mlx5dv_sig_t10dif_bg_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigT10difBgType`
+
+warning: type `mlx5dv_sig_t10dif_bg_caps` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5633:10
+     |
+5633 | pub type mlx5dv_sig_t10dif_bg_caps = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigT10difBgCaps`
+
+warning: type `mlx5dv_sig_crc_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5637:10
+     |
+5637 | pub type mlx5dv_sig_crc_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigCrcType`
+
+warning: type `mlx5dv_sig_crc_type_caps` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5641:10
+     |
+5641 | pub type mlx5dv_sig_crc_type_caps = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigCrcTypeCaps`
+
+warning: type `mlx5dv_block_size` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5647:10
+     |
+5647 | pub type mlx5dv_block_size = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvBlockSize`
+
+warning: type `mlx5dv_block_size_caps` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5653:10
+     |
+5653 | pub type mlx5dv_block_size_caps = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvBlockSizeCaps`
+
+warning: type `mlx5dv_crypto_engines_caps` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5676:10
+     |
+5676 | pub type mlx5dv_crypto_engines_caps = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCryptoEnginesCaps`
+
+warning: type `mlx5dv_crypto_wrapped_import_method_caps` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5679:10
+     |
+5679 | pub type mlx5dv_crypto_wrapped_import_method_caps = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCryptoWrappedImportMethodCaps`
+
+warning: type `mlx5dv_crypto_caps_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5683:10
+     |
+5683 | pub type mlx5dv_crypto_caps_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCryptoCapsFlags`
+
+warning: type `mlx5dv_context_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5785:10
+     |
+5785 | pub type mlx5dv_context_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvContextFlags`
+
+warning: type `mlx5dv_cq_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5789:10
+     |
+5789 | pub type mlx5dv_cq_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCqInitAttrMask`
+
+warning: type `mlx5dv_cq_init_attr_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5792:10
+     |
+5792 | pub type mlx5dv_cq_init_attr_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCqInitAttrFlags`
+
+warning: type `mlx5dv_qp_create_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5828:10
+     |
+5828 | pub type mlx5dv_qp_create_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvQpCreateFlags`
+
+warning: type `mlx5dv_mkey_init_attr_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5832:10
+     |
+5832 | pub type mlx5dv_mkey_init_attr_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvMkeyInitAttrFlags`
+
+warning: type `mlx5dv_qp_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5884:10
+     |
+5884 | pub type mlx5dv_qp_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvQpInitAttrMask`
+
+warning: type `mlx5dv_dc_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5887:10
+     |
+5887 | pub type mlx5dv_dc_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDcType`
+
+warning: type `mlx5dv_qp_create_send_ops_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:5956:10
+     |
+5956 | pub type mlx5dv_qp_create_send_ops_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvQpCreateSendOpsFlags`
+
+warning: type `mlx5dv_sig_t10dif_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6019:10
+     |
+6019 | pub type mlx5dv_sig_t10dif_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigT10difFlags`
+
+warning: type `mlx5dv_sig_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6140:10
+     |
+6140 | pub type mlx5dv_sig_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigMask`
+
+warning: type `mlx5dv_sig_block_attr_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6142:10
+     |
+6142 | pub type mlx5dv_sig_block_attr_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSigBlockAttrFlags`
+
+warning: type `mlx5dv_crypto_standard` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6181:10
+     |
+6181 | pub type mlx5dv_crypto_standard = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCryptoStandard`
+
+warning: type `mlx5dv_signature_crypto_order` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6186:10
+     |
+6186 | pub type mlx5dv_signature_crypto_order = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSignatureCryptoOrder`
+
+warning: type `mlx5dv_mkey_conf_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6230:10
+     |
+6230 | pub type mlx5dv_mkey_conf_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvMkeyConfFlags`
+
+warning: type `mlx5dv_wc_opcode` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6250:10
+     |
+6250 | pub type mlx5dv_wc_opcode = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvWcOpcode`
+
+warning: type `mlx5dv_mkey_err_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6370:10
+     |
+6370 | pub type mlx5dv_mkey_err_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvMkeyErrType`
+
+warning: type `mlx5dv_crypto_login_state` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6477:10
+     |
+6477 | pub type mlx5dv_crypto_login_state = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCryptoLoginState`
+
+warning: type `mlx5dv_crypto_key_size` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6495:10
+     |
+6495 | pub type mlx5dv_crypto_key_size = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCryptoKeySize`
+
+warning: type `mlx5dv_crypto_key_purpose` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6497:10
+     |
+6497 | pub type mlx5dv_crypto_key_purpose = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCryptoKeyPurpose`
+
+warning: type `mlx5dv_dek_state` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6500:10
+     |
+6500 | pub type mlx5dv_dek_state = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDekState`
+
+warning: type `mlx5dv_flow_action_esp_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6588:10
+     |
+6588 | pub type mlx5dv_flow_action_esp_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvFlowActionEspMask`
+
+warning: type `mlx5dv_flow_matcher_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6623:10
+     |
+6623 | pub type mlx5dv_flow_matcher_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvFlowMatcherAttrMask`
+
+warning: type `mlx5dv_flow_action_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6687:10
+     |
+6687 | pub type mlx5dv_flow_action_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvFlowActionType`
+
+warning: type `mlx5dv_qp_comp_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6790:10
+     |
+6790 | pub type mlx5dv_qp_comp_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvQpCompMask`
+
+warning: type `mlx5dv_srq_comp_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:6949:10
+     |
+6949 | pub type mlx5dv_srq_comp_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSrqCompMask`
+
+warning: type `mlx5dv_dm_comp_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7037:10
+     |
+7037 | pub type mlx5dv_dm_comp_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDmCompMask`
+
+warning: type `mlx5dv_obj_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7334:10
+     |
+7334 | pub type mlx5dv_obj_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvObjType`
+
+warning: type `mlx5dv_wq_init_attr_mask` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7336:10
+     |
+7336 | pub type mlx5dv_wq_init_attr_mask = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvWqInitAttrMask`
+
+warning: type `_bindgen_ty_66` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7405:10
+     |
+7405 | pub type _bindgen_ty_66 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy66`
+
+warning: type `_bindgen_ty_67` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7408:10
+     |
+7408 | pub type _bindgen_ty_67 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy67`
+
+warning: type `_bindgen_ty_68` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7422:10
+     |
+7422 | pub type _bindgen_ty_68 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy68`
+
+warning: type `_bindgen_ty_69` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7424:10
+     |
+7424 | pub type _bindgen_ty_69 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy69`
+
+warning: type `_bindgen_ty_70` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7428:10
+     |
+7428 | pub type _bindgen_ty_70 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy70`
+
+warning: type `_bindgen_ty_71` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7432:10
+     |
+7432 | pub type _bindgen_ty_71 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy71`
+
+warning: type `_bindgen_ty_72` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7445:10
+     |
+7445 | pub type _bindgen_ty_72 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy72`
+
+warning: type `_bindgen_ty_73` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7447:10
+     |
+7447 | pub type _bindgen_ty_73 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy73`
+
+warning: type `_bindgen_ty_74` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7450:10
+     |
+7450 | pub type _bindgen_ty_74 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy74`
+
+warning: type `_bindgen_ty_75` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7452:10
+     |
+7452 | pub type _bindgen_ty_75 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy75`
+
+warning: type `mlx5dv_cqe_comp_res_format` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7456:10
+     |
+7456 | pub type mlx5dv_cqe_comp_res_format = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvCqeCompResFormat`
+
+warning: type `mlx5dv_sw_parsing_offloads` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7460:10
+     |
+7460 | pub type mlx5dv_sw_parsing_offloads = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSwParsingOffloads`
+
+warning: type `_bindgen_ty_76` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7462:10
+     |
+7462 | pub type _bindgen_ty_76 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy76`
+
+warning: type `_bindgen_ty_77` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7464:10
+     |
+7464 | pub type _bindgen_ty_77 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy77`
+
+warning: type `_bindgen_ty_78` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7469:10
+     |
+7469 | pub type _bindgen_ty_78 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy78`
+
+warning: type `_bindgen_ty_79` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7472:10
+     |
+7472 | pub type _bindgen_ty_79 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy79`
+
+warning: type `_bindgen_ty_80` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7474:10
+     |
+7474 | pub type _bindgen_ty_80 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy80`
+
+warning: type `_bindgen_ty_81` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7477:10
+     |
+7477 | pub type _bindgen_ty_81 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy81`
+
+warning: type `_bindgen_ty_82` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7745:10
+     |
+7745 | pub type _bindgen_ty_82 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy82`
+
+warning: type `_bindgen_ty_83` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7757:10
+     |
+7757 | pub type _bindgen_ty_83 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy83`
+
+warning: type `_bindgen_ty_84` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7912:10
+     |
+7912 | pub type _bindgen_ty_84 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy84`
+
+warning: type `_bindgen_ty_85` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7918:10
+     |
+7918 | pub type _bindgen_ty_85 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy85`
+
+warning: type `mlx5dv_set_ctx_attr_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7987:10
+     |
+7987 | pub type mlx5dv_set_ctx_attr_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSetCtxAttrType`
+
+warning: type `_bindgen_ty_86` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:7990:10
+     |
+7990 | pub type _bindgen_ty_86 = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `BindgenTy86`
+
+warning: type `mlx5dv_context_attr_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8070:10
+     |
+8070 | pub type mlx5dv_context_attr_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvContextAttrFlags`
+
+warning: type `mlx5dv_vfio_context_attr_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8090:10
+     |
+8090 | pub type mlx5dv_vfio_context_attr_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvVfioContextAttrFlags`
+
+warning: type `mlx5dv_dr_domain_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8513:10
+     |
+8513 | pub type mlx5dv_dr_domain_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDrDomainType`
+
+warning: type `mlx5dv_dr_domain_sync_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8517:10
+     |
+8517 | pub type mlx5dv_dr_domain_sync_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDrDomainSyncFlags`
+
+warning: type `mlx5dv_dr_matcher_layout_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8631:10
+     |
+8631 | pub type mlx5dv_dr_matcher_layout_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDrMatcherLayoutFlags`
+
+warning: type `mlx5dv_dr_action_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8667:10
+     |
+8667 | pub type mlx5dv_dr_action_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDrActionFlags`
+
+warning: type `mlx5dv_dr_action_dest_type` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8694:10
+     |
+8694 | pub type mlx5dv_dr_action_dest_type = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDrActionDestType`
+
+warning: type `mlx5dv_dr_action_aso_first_hit_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8794:10
+     |
+8794 | pub type mlx5dv_dr_action_aso_first_hit_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDrActionAsoFirstHitFlags`
+
+warning: type `mlx5dv_dr_action_aso_flow_meter_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8800:10
+     |
+8800 | pub type mlx5dv_dr_action_aso_flow_meter_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDrActionAsoFlowMeterFlags`
+
+warning: type `mlx5dv_dr_action_aso_ct_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8803:10
+     |
+8803 | pub type mlx5dv_dr_action_aso_ct_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvDrActionAsoCtFlags`
+
+warning: type `mlx5dv_sched_elem_attr_flags` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:8929:10
+     |
+8929 | pub type mlx5dv_sched_elem_attr_flags = ::std::os::raw::c_uint;
+     |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `Mlx5dvSchedElemAttrFlags`
+
+warning: type `cqe_poll_result_t` should have an upper camel case name
+    --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:9035:10
+     |
+9035 | pub type cqe_poll_result_t = ::std::os::raw::c_int;
+     |          ^^^^^^^^^^^^^^^^^ help: convert the identifier to upper camel case: `CqePollResultT`
+
+warning: constant `hipSuccess` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:258:11
+    |
+258 | pub const hipSuccess: hipError_t = 0;
+    |           ^^^^^^^^^^ help: convert the identifier to upper case: `HIP_SUCCESS`
+    |
+    = note: `#[warn(non_upper_case_globals)]` on by default
+
+warning: constant `hipErrorInvalidValue` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:260:11
+    |
+260 | pub const hipErrorInvalidValue: hipError_t = 1;
+    |           ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_VALUE`
+
+warning: constant `hipErrorOutOfMemory` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:262:11
+    |
+262 | pub const hipErrorOutOfMemory: hipError_t = 2;
+    |           ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_OUT_OF_MEMORY`
+
+warning: constant `hipErrorMemoryAllocation` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:264:11
+    |
+264 | pub const hipErrorMemoryAllocation: hipError_t = 2;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_MEMORY_ALLOCATION`
+
+warning: constant `hipErrorNotInitialized` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:266:11
+    |
+266 | pub const hipErrorNotInitialized: hipError_t = 3;
+    |           ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NOT_INITIALIZED`
+
+warning: constant `hipErrorInitializationError` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:267:11
+    |
+267 | pub const hipErrorInitializationError: hipError_t = 3;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INITIALIZATION_ERROR`
+
+warning: constant `hipErrorDeinitialized` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:269:11
+    |
+269 | pub const hipErrorDeinitialized: hipError_t = 4;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_DEINITIALIZED`
+
+warning: constant `hipErrorProfilerDisabled` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:270:11
+    |
+270 | pub const hipErrorProfilerDisabled: hipError_t = 5;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_PROFILER_DISABLED`
+
+warning: constant `hipErrorProfilerNotInitialized` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:271:11
+    |
+271 | pub const hipErrorProfilerNotInitialized: hipError_t = 6;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_PROFILER_NOT_INITIALIZED`
+
+warning: constant `hipErrorProfilerAlreadyStarted` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:272:11
+    |
+272 | pub const hipErrorProfilerAlreadyStarted: hipError_t = 7;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_PROFILER_ALREADY_STARTED`
+
+warning: constant `hipErrorProfilerAlreadyStopped` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:273:11
+    |
+273 | pub const hipErrorProfilerAlreadyStopped: hipError_t = 8;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_PROFILER_ALREADY_STOPPED`
+
+warning: constant `hipErrorInvalidConfiguration` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:275:11
+    |
+275 | pub const hipErrorInvalidConfiguration: hipError_t = 9;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_CONFIGURATION`
+
+warning: constant `hipErrorInvalidPitchValue` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:277:11
+    |
+277 | pub const hipErrorInvalidPitchValue: hipError_t = 12;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_PITCH_VALUE`
+
+warning: constant `hipErrorInvalidSymbol` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:279:11
+    |
+279 | pub const hipErrorInvalidSymbol: hipError_t = 13;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_SYMBOL`
+
+warning: constant `hipErrorInvalidDevicePointer` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:281:11
+    |
+281 | pub const hipErrorInvalidDevicePointer: hipError_t = 17;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_DEVICE_POINTER`
+
+warning: constant `hipErrorInvalidMemcpyDirection` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:283:11
+    |
+283 | pub const hipErrorInvalidMemcpyDirection: hipError_t = 21;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_MEMCPY_DIRECTION`
+
+warning: constant `hipErrorInsufficientDriver` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:284:11
+    |
+284 | pub const hipErrorInsufficientDriver: hipError_t = 35;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INSUFFICIENT_DRIVER`
+
+warning: constant `hipErrorMissingConfiguration` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:285:11
+    |
+285 | pub const hipErrorMissingConfiguration: hipError_t = 52;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_MISSING_CONFIGURATION`
+
+warning: constant `hipErrorPriorLaunchFailure` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:286:11
+    |
+286 | pub const hipErrorPriorLaunchFailure: hipError_t = 53;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_PRIOR_LAUNCH_FAILURE`
+
+warning: constant `hipErrorInvalidDeviceFunction` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:288:11
+    |
+288 | pub const hipErrorInvalidDeviceFunction: hipError_t = 98;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_DEVICE_FUNCTION`
+
+warning: constant `hipErrorNoDevice` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:290:11
+    |
+290 | pub const hipErrorNoDevice: hipError_t = 100;
+    |           ^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NO_DEVICE`
+
+warning: constant `hipErrorInvalidDevice` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:292:11
+    |
+292 | pub const hipErrorInvalidDevice: hipError_t = 101;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_DEVICE`
+
+warning: constant `hipErrorInvalidImage` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:294:11
+    |
+294 | pub const hipErrorInvalidImage: hipError_t = 200;
+    |           ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_IMAGE`
+
+warning: constant `hipErrorInvalidContext` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:296:11
+    |
+296 | pub const hipErrorInvalidContext: hipError_t = 201;
+    |           ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_CONTEXT`
+
+warning: constant `hipErrorContextAlreadyCurrent` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:297:11
+    |
+297 | pub const hipErrorContextAlreadyCurrent: hipError_t = 202;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_CONTEXT_ALREADY_CURRENT`
+
+warning: constant `hipErrorMapFailed` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:298:11
+    |
+298 | pub const hipErrorMapFailed: hipError_t = 205;
+    |           ^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_MAP_FAILED`
+
+warning: constant `hipErrorMapBufferObjectFailed` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:300:11
+    |
+300 | pub const hipErrorMapBufferObjectFailed: hipError_t = 205;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_MAP_BUFFER_OBJECT_FAILED`
+
+warning: constant `hipErrorUnmapFailed` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:301:11
+    |
+301 | pub const hipErrorUnmapFailed: hipError_t = 206;
+    |           ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_UNMAP_FAILED`
+
+warning: constant `hipErrorArrayIsMapped` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:302:11
+    |
+302 | pub const hipErrorArrayIsMapped: hipError_t = 207;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_ARRAY_IS_MAPPED`
+
+warning: constant `hipErrorAlreadyMapped` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:303:11
+    |
+303 | pub const hipErrorAlreadyMapped: hipError_t = 208;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_ALREADY_MAPPED`
+
+warning: constant `hipErrorNoBinaryForGpu` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:304:11
+    |
+304 | pub const hipErrorNoBinaryForGpu: hipError_t = 209;
+    |           ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NO_BINARY_FOR_GPU`
+
+warning: constant `hipErrorAlreadyAcquired` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:305:11
+    |
+305 | pub const hipErrorAlreadyAcquired: hipError_t = 210;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_ALREADY_ACQUIRED`
+
+warning: constant `hipErrorNotMapped` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:306:11
+    |
+306 | pub const hipErrorNotMapped: hipError_t = 211;
+    |           ^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NOT_MAPPED`
+
+warning: constant `hipErrorNotMappedAsArray` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:307:11
+    |
+307 | pub const hipErrorNotMappedAsArray: hipError_t = 212;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NOT_MAPPED_AS_ARRAY`
+
+warning: constant `hipErrorNotMappedAsPointer` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:308:11
+    |
+308 | pub const hipErrorNotMappedAsPointer: hipError_t = 213;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NOT_MAPPED_AS_POINTER`
+
+warning: constant `hipErrorECCNotCorrectable` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:309:11
+    |
+309 | pub const hipErrorECCNotCorrectable: hipError_t = 214;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_ECCNOT_CORRECTABLE`
+
+warning: constant `hipErrorUnsupportedLimit` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:311:11
+    |
+311 | pub const hipErrorUnsupportedLimit: hipError_t = 215;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_UNSUPPORTED_LIMIT`
+
+warning: constant `hipErrorContextAlreadyInUse` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:313:11
+    |
+313 | pub const hipErrorContextAlreadyInUse: hipError_t = 216;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_CONTEXT_ALREADY_IN_USE`
+
+warning: constant `hipErrorPeerAccessUnsupported` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:314:11
+    |
+314 | pub const hipErrorPeerAccessUnsupported: hipError_t = 217;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_PEER_ACCESS_UNSUPPORTED`
+
+warning: constant `hipErrorInvalidKernelFile` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:316:11
+    |
+316 | pub const hipErrorInvalidKernelFile: hipError_t = 218;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_KERNEL_FILE`
+
+warning: constant `hipErrorInvalidGraphicsContext` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:317:11
+    |
+317 | pub const hipErrorInvalidGraphicsContext: hipError_t = 219;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_GRAPHICS_CONTEXT`
+
+warning: constant `hipErrorInvalidSource` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:319:11
+    |
+319 | pub const hipErrorInvalidSource: hipError_t = 300;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_SOURCE`
+
+warning: constant `hipErrorFileNotFound` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:321:11
+    |
+321 | pub const hipErrorFileNotFound: hipError_t = 301;
+    |           ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_FILE_NOT_FOUND`
+
+warning: constant `hipErrorSharedObjectSymbolNotFound` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:322:11
+    |
+322 | pub const hipErrorSharedObjectSymbolNotFound: hipError_t = 302;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND`
+
+warning: constant `hipErrorSharedObjectInitFailed` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:324:11
+    |
+324 | pub const hipErrorSharedObjectInitFailed: hipError_t = 303;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_SHARED_OBJECT_INIT_FAILED`
+
+warning: constant `hipErrorOperatingSystem` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:326:11
+    |
+326 | pub const hipErrorOperatingSystem: hipError_t = 304;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_OPERATING_SYSTEM`
+
+warning: constant `hipErrorInvalidHandle` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:328:11
+    |
+328 | pub const hipErrorInvalidHandle: hipError_t = 400;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_HANDLE`
+
+warning: constant `hipErrorInvalidResourceHandle` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:330:11
+    |
+330 | pub const hipErrorInvalidResourceHandle: hipError_t = 400;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_RESOURCE_HANDLE`
+
+warning: constant `hipErrorIllegalState` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:332:11
+    |
+332 | pub const hipErrorIllegalState: hipError_t = 401;
+    |           ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_ILLEGAL_STATE`
+
+warning: constant `hipErrorNotFound` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:334:11
+    |
+334 | pub const hipErrorNotFound: hipError_t = 500;
+    |           ^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NOT_FOUND`
+
+warning: constant `hipErrorNotReady` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:336:11
+    |
+336 | pub const hipErrorNotReady: hipError_t = 600;
+    |           ^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NOT_READY`
+
+warning: constant `hipErrorIllegalAddress` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:337:11
+    |
+337 | pub const hipErrorIllegalAddress: hipError_t = 700;
+    |           ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_ILLEGAL_ADDRESS`
+
+warning: constant `hipErrorLaunchOutOfResources` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:339:11
+    |
+339 | pub const hipErrorLaunchOutOfResources: hipError_t = 701;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_LAUNCH_OUT_OF_RESOURCES`
+
+warning: constant `hipErrorLaunchTimeOut` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:341:11
+    |
+341 | pub const hipErrorLaunchTimeOut: hipError_t = 702;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_LAUNCH_TIME_OUT`
+
+warning: constant `hipErrorPeerAccessAlreadyEnabled` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:343:11
+    |
+343 | pub const hipErrorPeerAccessAlreadyEnabled: hipError_t = 704;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_PEER_ACCESS_ALREADY_ENABLED`
+
+warning: constant `hipErrorPeerAccessNotEnabled` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:345:11
+    |
+345 | pub const hipErrorPeerAccessNotEnabled: hipError_t = 705;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_PEER_ACCESS_NOT_ENABLED`
+
+warning: constant `hipErrorSetOnActiveProcess` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:347:11
+    |
+347 | pub const hipErrorSetOnActiveProcess: hipError_t = 708;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_SET_ON_ACTIVE_PROCESS`
+
+warning: constant `hipErrorContextIsDestroyed` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:349:11
+    |
+349 | pub const hipErrorContextIsDestroyed: hipError_t = 709;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_CONTEXT_IS_DESTROYED`
+
+warning: constant `hipErrorAssert` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:351:11
+    |
+351 | pub const hipErrorAssert: hipError_t = 710;
+    |           ^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_ASSERT`
+
+warning: constant `hipErrorHostMemoryAlreadyRegistered` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:353:11
+    |
+353 | pub const hipErrorHostMemoryAlreadyRegistered: hipError_t = 712;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_HOST_MEMORY_ALREADY_REGISTERED`
+
+warning: constant `hipErrorHostMemoryNotRegistered` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:355:11
+    |
+355 | pub const hipErrorHostMemoryNotRegistered: hipError_t = 713;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_HOST_MEMORY_NOT_REGISTERED`
+
+warning: constant `hipErrorLaunchFailure` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:357:11
+    |
+357 | pub const hipErrorLaunchFailure: hipError_t = 719;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_LAUNCH_FAILURE`
+
+warning: constant `hipErrorCooperativeLaunchTooLarge` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:359:11
+    |
+359 | pub const hipErrorCooperativeLaunchTooLarge: hipError_t = 720;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_COOPERATIVE_LAUNCH_TOO_LARGE`
+
+warning: constant `hipErrorNotSupported` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:361:11
+    |
+361 | pub const hipErrorNotSupported: hipError_t = 801;
+    |           ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_NOT_SUPPORTED`
+
+warning: constant `hipErrorStreamCaptureUnsupported` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:363:11
+    |
+363 | pub const hipErrorStreamCaptureUnsupported: hipError_t = 900;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_STREAM_CAPTURE_UNSUPPORTED`
+
+warning: constant `hipErrorStreamCaptureInvalidated` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:365:11
+    |
+365 | pub const hipErrorStreamCaptureInvalidated: hipError_t = 901;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_STREAM_CAPTURE_INVALIDATED`
+
+warning: constant `hipErrorStreamCaptureMerge` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:367:11
+    |
+367 | pub const hipErrorStreamCaptureMerge: hipError_t = 902;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_STREAM_CAPTURE_MERGE`
+
+warning: constant `hipErrorStreamCaptureUnmatched` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:369:11
+    |
+369 | pub const hipErrorStreamCaptureUnmatched: hipError_t = 903;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_STREAM_CAPTURE_UNMATCHED`
+
+warning: constant `hipErrorStreamCaptureUnjoined` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:371:11
+    |
+371 | pub const hipErrorStreamCaptureUnjoined: hipError_t = 904;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_STREAM_CAPTURE_UNJOINED`
+
+warning: constant `hipErrorStreamCaptureIsolation` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:373:11
+    |
+373 | pub const hipErrorStreamCaptureIsolation: hipError_t = 905;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_STREAM_CAPTURE_ISOLATION`
+
+warning: constant `hipErrorStreamCaptureImplicit` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:375:11
+    |
+375 | pub const hipErrorStreamCaptureImplicit: hipError_t = 906;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_STREAM_CAPTURE_IMPLICIT`
+
+warning: constant `hipErrorCapturedEvent` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:377:11
+    |
+377 | pub const hipErrorCapturedEvent: hipError_t = 907;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_CAPTURED_EVENT`
+
+warning: constant `hipErrorStreamCaptureWrongThread` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:379:11
+    |
+379 | pub const hipErrorStreamCaptureWrongThread: hipError_t = 908;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_STREAM_CAPTURE_WRONG_THREAD`
+
+warning: constant `hipErrorGraphExecUpdateFailure` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:381:11
+    |
+381 | pub const hipErrorGraphExecUpdateFailure: hipError_t = 910;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_GRAPH_EXEC_UPDATE_FAILURE`
+
+warning: constant `hipErrorInvalidChannelDescriptor` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:383:11
+    |
+383 | pub const hipErrorInvalidChannelDescriptor: hipError_t = 911;
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_CHANNEL_DESCRIPTOR`
+
+warning: constant `hipErrorInvalidTexture` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:385:11
+    |
+385 | pub const hipErrorInvalidTexture: hipError_t = 912;
+    |           ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_INVALID_TEXTURE`
+
+warning: constant `hipErrorUnknown` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:387:11
+    |
+387 | pub const hipErrorUnknown: hipError_t = 999;
+    |           ^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_UNKNOWN`
+
+warning: constant `hipErrorRuntimeMemory` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:389:11
+    |
+389 | pub const hipErrorRuntimeMemory: hipError_t = 1052;
+    |           ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_RUNTIME_MEMORY`
+
+warning: constant `hipErrorRuntimeOther` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:391:11
+    |
+391 | pub const hipErrorRuntimeOther: hipError_t = 1053;
+    |           ^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_RUNTIME_OTHER`
+
+warning: constant `hipErrorTbd` should have an upper case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:393:11
+    |
+393 | pub const hipErrorTbd: hipError_t = 1054;
+    |           ^^^^^^^^^^^ help: convert the identifier to upper case: `HIP_ERROR_TBD`
+
+warning: structure field `_IO_read_ptr` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:417:9
+    |
+417 |     pub _IO_read_ptr: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_read_ptr`
+    |
+    = note: `#[warn(non_snake_case)]` on by default
+
+warning: structure field `_IO_read_end` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:418:9
+    |
+418 |     pub _IO_read_end: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_read_end`
+
+warning: structure field `_IO_read_base` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:419:9
+    |
+419 |     pub _IO_read_base: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_read_base`
+
+warning: structure field `_IO_write_base` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:420:9
+    |
+420 |     pub _IO_write_base: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_write_base`
+
+warning: structure field `_IO_write_ptr` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:421:9
+    |
+421 |     pub _IO_write_ptr: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_write_ptr`
+
+warning: structure field `_IO_write_end` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:422:9
+    |
+422 |     pub _IO_write_end: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_write_end`
+
+warning: structure field `_IO_buf_base` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:423:9
+    |
+423 |     pub _IO_buf_base: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_buf_base`
+
+warning: structure field `_IO_buf_end` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:424:9
+    |
+424 |     pub _IO_buf_end: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_buf_end`
+
+warning: structure field `_IO_save_base` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:425:9
+    |
+425 |     pub _IO_save_base: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_save_base`
+
+warning: structure field `_IO_backup_base` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:426:9
+    |
+426 |     pub _IO_backup_base: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_backup_base`
+
+warning: structure field `_IO_save_end` should have a snake case name
+   --> /home/chcai/monarch/target/debug/build/rdmaxcel-sys-hip-0b9c85085a884d9a/out/bindings.rs:427:9
+    |
+427 |     pub _IO_save_end: *mut ::std::os::raw::c_char,
+    |         ^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `_io_save_end`
+
+warning: `rdmaxcel-sys-hip` (lib) generated 252 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 12.17s

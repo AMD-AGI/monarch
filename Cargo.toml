@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "controller",
     "cuda-sys",
+    "hip-sys",
     "erased_lifetime",
     "hyper",
     "hyperactor",
