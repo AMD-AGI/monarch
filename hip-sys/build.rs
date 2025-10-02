@@ -28,6 +28,7 @@ fn main() {
     let mut builder = bindgen::Builder::default()
         // The input header we would like to generate bindings for
         .header("src/wrapper.h")
+        .clang_arg("-D__HIP_PLATFORM_AMD__")
         .clang_arg("-x")
         .clang_arg("c++")
         .clang_arg("-std=gnu++20")
@@ -78,9 +79,7 @@ fn main() {
         }
     };
     println!("cargo:rustc-link-search=native={}", hip_lib_dir);
-    println!("cargo:rustc-link-lib=hip");
-    println!("cargo:rustc-link-lib=hiprtc");
-    println!("{}", hip_lib_dir);
+    println!("cargo:rustc-link-lib=amdhip64");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file
     match env::var("OUT_DIR") {
