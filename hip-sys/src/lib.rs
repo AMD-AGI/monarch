@@ -18,8 +18,8 @@ use cxx::ExternType;
 use cxx::type_id;
 
 /// SAFETY: bindings
-unsafe impl ExternType for hipStream_t {
-    type Id = type_id!("hipStream_t");
+unsafe impl ExternType for ihipStream_t {
+    type Id = type_id!("ihipStream_t");
     type Kind = cxx::kind::Opaque;
 }
 

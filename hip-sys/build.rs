@@ -15,20 +15,20 @@ fn main() {}
 
 #[cfg(not(target_os = "macos"))]
 fn main() {
-    // Validate CUDA installation and get CUDA home path
-    // let cuda_home = match build_utils::validate_cuda_installation() {
-    //     Ok(home) => home,
-    //     Err(_) => {
-    //         build_utils::print_cuda_error_help();
-    //         std::process::exit(1);
-    //     }
-    // };
-    let hip_home = "/opt/rocm";
+    // Validate HIP installation and get HIP home path
+    let hip_home = match build_utils::validate_hip_installation() {
+        Ok(home) => home,
+        Err(_) => {
+            build_utils::print_hip_error_help();
+            std::process::exit(1);
+        }
+    };
 
     // Start building the bindgen configuration
     let mut builder = bindgen::Builder::default()
         // The input header we would like to generate bindings for
         .header("src/wrapper.h")
+        .clang_arg("-D__HIP_PLATFORM_AMD__")
         .clang_arg("-x")
         .clang_arg("c++")
         .clang_arg("-std=gnu++20")
@@ -70,20 +70,16 @@ fn main() {
         println!("cargo::metadata=LIB_PATH={}", lib_dir);
     }
 
-    // Get CUDA library directory and emit link directives
-    // let cuda_lib_dir = match build_utils::get_cuda_lib_dir() {
-    //     Ok(dir) => dir,
-    //     Err(_) => {
-    //         build_utils::print_cuda_lib_error_help();
-    //         std::process::exit(1);
-    //     }
-    // };
-    let hip_lib_dir ="/opt/rocm/lib";
-
+    // Get HIP library directory and emit link directives
+    let hip_lib_dir = match build_utils::get_hip_lib_dir() {
+        Ok(dir) => dir,
+        Err(_) => {
+            build_utils::print_hip_lib_error_help();
+            std::process::exit(1);
+        }
+    };
     println!("cargo:rustc-link-search=native={}", hip_lib_dir);
-    // println!("cargo:rustc-link-lib=cuda");
-    // println!("cargo:rustc-link-lib=cudart");
-    println!("cargo:rustc-link-lib=hip");
+    println!("cargo:rustc-link-lib=amdhip64");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file
     match env::var("OUT_DIR") {
