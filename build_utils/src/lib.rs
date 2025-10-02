@@ -9,7 +9,7 @@
 //! Build utilities shared across monarch *-sys crates
 //!
 //! This module provides common functionality for Python environment discovery
-//! and CUDA installation detection used by various build scripts.
+//! and CUDA/HIP installation detection used by various build scripts.
 
 use std::env;
 use std::path::Path;
@@ -48,6 +48,18 @@ for library_path in cpp_extension.library_paths():
 print('LIBTORCH_CXX11:', torch._C._GLIBCXX_USE_CXX11_ABI)
 ";
 
+/// Python script to extract PyTorch details including HIP info
+pub const PYTHON_PRINT_HIP_DETAILS: &str = r"
+import torch
+from torch.utils import cpp_extension
+print('HIP_HOME:', cpp_extension.HIP_HOME)
+for include_path in cpp_extension.include_paths():
+    print('LIBTORCH_INCLUDE:', include_path)
+for library_path in cpp_extension.library_paths():
+    print('LIBTORCH_LIB:', library_path)
+print('LIBTORCH_CXX11:', torch._C._GLIBCXX_USE_CXX11_ABI)
+";
+
 /// Python script to extract Python include paths
 pub const PYTHON_PRINT_INCLUDE_PATH: &str = r"
 import sysconfig
@@ -64,6 +76,14 @@ pub struct CudaConfig {
     pub lib_dirs: Vec<PathBuf>,
 }
 
+/// Configuration structure for HIP environment
+#[derive(Debug, Clone, Default)]
+pub struct HipConfig {
+    pub hip_home: Option<PathBuf>,
+    pub include_dirs: Vec<PathBuf>,
+    pub lib_dirs: Vec<PathBuf>,
+}
+
 /// Result of Python environment discovery
 #[derive(Debug, Clone)]
 pub struct PythonConfig {
@@ -75,6 +95,7 @@ pub struct PythonConfig {
 #[derive(Debug)]
 pub enum BuildError {
     CudaNotFound,
+    HipNotFound,
     PythonNotFound,
     CommandFailed(String),
     PathNotFound(String),
@@ -84,6 +105,7 @@ impl std::fmt::Display for BuildError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BuildError::CudaNotFound => write!(f, "CUDA installation not found"),
+            BuildError::HipNotFound => write!(f, "HIP installation not found"),
             BuildError::PythonNotFound => write!(f, "Python interpreter not found"),
             BuildError::CommandFailed(cmd) => write!(f, "Command failed: {}", cmd),
             BuildError::PathNotFound(path) => write!(f, "Path not found: {}", path),
@@ -140,6 +162,47 @@ pub fn find_cuda_home() -> Option<String> {
     cuda_home
 }
 
+/// Find HIP home directory using various heuristics
+///
+/// This function attempts to locate HIP installation through:
+/// 1. HIP_HOME environment variable
+/// 2. HIP_PATH environment variable
+/// 3. Finding hipcc in PATH and deriving hip home
+/// 4. Platform-specific default locations
+pub fn find_hip_home() -> Option<String> {
+    // Guess #1: Environment variables
+    let mut hip_home = env::var("HIP_HOME")
+        .ok()
+        .or_else(|| env::var("HIP_PATH").ok());
+
+    if hip_home.is_none() {
+        // Guess #2: Find hipcc in PATH
+        if let Ok(hipcc_path) = which("hipcc") {
+            // Get parent directory twice (hipcc is in HIP_HOME/bin)
+            if let Some(hip_dir) = hipcc_path.parent().and_then(|p| p.parent()) {
+                hip_home = Some(hip_dir.to_string_lossy().into_owned());
+            }
+        } else {
+            // Guess #3: Platform-specific defaults
+            if cfg!(windows) {
+                let pattern = r"C:\Program Files\NVIDIA GPU Computing Toolkit\HIP\v*.*";
+                let hip_homes: Vec<_> = glob(pattern).unwrap().filter_map(Result::ok).collect();
+                if !hip_homes.is_empty() {
+                    hip_home = Some(hip_homes[0].to_string_lossy().into_owned());
+                }
+            } else {
+                // Unix-like systems
+                let hip_candidate = "/opt/rocm/hip";
+                if Path::new(hip_candidate).exists() {
+                    hip_home = Some(hip_candidate.to_string());
+                }
+            }
+        }
+    }
+
+    hip_home
+}
+
 /// Discover CUDA configuration including home, include dirs, and lib dirs
 pub fn discover_cuda_config() -> Result<CudaConfig, BuildError> {
     let cuda_home = find_cuda_home().ok_or(BuildError::CudaNotFound)?;
@@ -169,6 +232,35 @@ pub fn discover_cuda_config() -> Result<CudaConfig, BuildError> {
     Ok(config)
 }
 
+/// Discover HIP configuration including home, include dirs, and lib dirs
+pub fn discover_hip_config() -> Result<HipConfig, BuildError> {
+    let hip_home = find_hip_home().ok_or(BuildError::HipNotFound)?;
+    let hip_home_path = PathBuf::from(&hip_home);
+
+    let mut config = HipConfig {
+        hip_home: Some(hip_home_path.clone()),
+        include_dirs: Vec::new(),
+        lib_dirs: Vec::new(),
+    };
+
+    // Add standard include directory
+    let include_dir = hip_home_path.join("include");
+    if include_dir.exists() {
+        config.include_dirs.push(include_dir);
+    }
+
+    // Add standard library directories
+    for lib_subdir in &["lib64", "lib", "lib/x64"] {
+        let lib_dir = hip_home_path.join(lib_subdir);
+        if lib_dir.exists() {
+            config.lib_dirs.push(lib_dir);
+            break; // Use first found
+        }
+    }
+
+    Ok(config)
+}
+
 /// Validate CUDA installation exists and is complete
 pub fn validate_cuda_installation() -> Result<String, BuildError> {
     let cuda_config = discover_cuda_config()?;
@@ -185,6 +277,24 @@ pub fn validate_cuda_installation() -> Result<String, BuildError> {
     }
 
     Ok(cuda_home_str)
+}
+
+/// Validate HIP installation exists and is complete
+pub fn validate_hip_installation() -> Result<String, BuildError> {
+    let hip_config = discover_hip_config()?;
+    let hip_home = hip_config.hip_home.ok_or(BuildError::HipNotFound)?;
+    let hip_home_str = hip_home.to_string_lossy().to_string();
+
+    // Verify HIP include directory exists
+    let hip_include_path = hip_home.join("include");
+    if !hip_include_path.exists() {
+        return Err(BuildError::PathNotFound(format!(
+            "HIP include directory at {}",
+            hip_include_path.display()
+        )));
+    }
+
+    Ok(hip_home_str)
 }
 
 /// Get CUDA library directory
@@ -209,6 +319,31 @@ pub fn get_cuda_lib_dir() -> Result<String, BuildError> {
 
     Err(BuildError::PathNotFound(
         "CUDA library directory".to_string(),
+    ))
+}
+
+/// Get HIP library directory
+pub fn get_hip_lib_dir() -> Result<String, BuildError> {
+    // Check if user explicitly set HIP_LIB_DIR
+    if let Ok(hip_lib_dir) = env::var("HIP_LIB_DIR") {
+        return Ok(hip_lib_dir);
+    }
+
+    // Try to deduce from HIP configuration
+    let hip_config = discover_hip_config()?;
+    if let Some(hip_home) = hip_config.hip_home {
+        let lib64_path = hip_home.join("lib64");
+        if lib64_path.exists() {
+            return Ok(lib64_path.to_string_lossy().to_string());
+        }
+        let lib_path = hip_home.join("lib");
+        if lib_path.exists() {
+            return Ok(lib_path.to_string_lossy().to_string());
+        }
+    }
+
+    Err(BuildError::PathNotFound(
+        "HIP library directory".to_string(),
     ))
 }
 
@@ -264,6 +399,18 @@ pub fn print_cuda_error_help() {
     eprintln!("Example: export CUDA_HOME=/usr/local/cuda-12.0");
 }
 
+/// Print helpful error message for HIP not found
+pub fn print_hip_error_help() {
+    eprintln!("Error: HIP installation not found!");
+    eprintln!("Please ensure HIP is installed and one of the following is true:");
+    eprintln!("  1. Set HIP_HOME environment variable to your HIP installation directory");
+    eprintln!("  2. Set HIP_PATH environment variable to your HIP installation directory");
+    eprintln!("  3. Ensure 'hipcc' is in your PATH");
+    eprintln!("  4. Install HIP to the default location (/opt/rocm on Linux)");
+    eprintln!();
+    eprintln!("Example: export HIP_HOME=/opt/rocm/");
+}
+
 /// Print helpful error message for CUDA lib dir not found
 pub fn print_cuda_lib_error_help() {
     eprintln!("Error: CUDA library directory not found!");
@@ -271,6 +418,15 @@ pub fn print_cuda_lib_error_help() {
     eprintln!();
     eprintln!("Example: export CUDA_LIB_DIR=/usr/local/cuda-12.0/lib64");
     eprintln!("Or: export CUDA_LIB_DIR=/usr/lib64");
+}
+
+/// Print helpful error message for HIP lib dir not found
+pub fn print_hip_lib_error_help() {
+    eprintln!("Error: HIP library directory not found!");
+    eprintln!("Please set HIP_LIB_DIR environment variable to your HIP library directory.");
+    eprintln!();
+    eprintln!("Example: export HIP_LIB_DIR=/opt/rocm/lib");
+    eprintln!("Or: export HIP_LIB_DIR=/usr/lib64");
 }
 
 #[cfg(test)]
@@ -283,6 +439,14 @@ mod tests {
         let result = find_cuda_home();
         env::remove_var("CUDA_HOME");
         assert_eq!(result, Some("/test/cuda".to_string()));
+    }
+
+    #[test]
+    fn test_find_hip_home_env_var() {
+        env::set_var("HIP_HOME", "/test/hip");
+        let result = find_hip_home();
+        env::remove_var("HIP_HOME");
+        assert_eq!(result, Some("/test/hip".to_string()));
     }
 
     #[test]

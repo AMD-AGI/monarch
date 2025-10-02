@@ -25,16 +25,14 @@ fn main() {
     println!("cargo:rerun-if-changed=src/rdmaxcel.h");
     println!("cargo:rerun-if-changed=src/rdmaxcel.c");
 
-    // TODO: hardcoding hip_home for now
-    // Validate CUDA installation and get CUDA home path
-    // let cuda_home = match build_utils::validate_cuda_installation() {
-    //     Ok(home) => home,
-    //     Err(_) => {
-    //         build_utils::print_cuda_error_help();
-    //         std::process::exit(1);
-    //     }
-    // };
-    let hip_home = "/opt/rocm";
+    // Validate HIP installation and get HIP home path
+    let hip_home = match build_utils::validate_hip_installation() {
+        Ok(home) => home,
+        Err(_) => {
+            build_utils::print_hip_error_help();
+            std::process::exit(1);
+        }
+    };
 
     // Get the directory of the current crate
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| {
@@ -142,16 +140,14 @@ fn main() {
         println!("cargo:metadata=LIB_PATH={}", lib_dir);
     }
     
-    // TODO: hardcoding hip_lib_dir for now
-    // Get CUDA library directory and emit link directives
-    // let cuda_lib_dir = match build_utils::get_cuda_lib_dir() {
-    //     Ok(dir) => dir,
-    //     Err(_) => {
-    //         build_utils::print_cuda_lib_error_help();
-    //         std::process::exit(1);
-    //     }
-    // };
-    let hip_lib_dir ="/opt/rocm/lib";
+    // Get HIP library directory and emit link directives
+    let hip_lib_dir = match build_utils::get_hip_lib_dir() {
+        Ok(dir) => dir,
+        Err(_) => {
+            build_utils::print_hip_lib_error_help();
+            std::process::exit(1);
+        }
+    };
     println!("cargo:rustc-link-search=native={}", hip_lib_dir);
 
     // TODO: confirm hip is enough to replace cuda/cudart
