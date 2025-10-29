@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 /*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
  * All rights reserved.
@@ -110,11 +109,43 @@ __global__ void cu_recv_wqe(wqe_params_t params);
 void launch_send_wqe(wqe_params_t params);
 void launch_recv_wqe(wqe_params_t params);
 
+// RDMA Error Codes
+typedef enum {
+  RDMAXCEL_SUCCESS = 0, // Success
+  RDMAXCEL_INVALID_PARAMS = -1, // Invalid parameters provided
+  RDMAXCEL_MR_REGISTRATION_FAILED = -2, // Memory region registration failed
+  RDMAXCEL_DMABUF_HANDLE_FAILED = -3, // Failed to get dmabuf handle
+  RDMAXCEL_MR_REG_FAILED = -4, // MR registration failed in register_segments
+  RDMAXCEL_MEMORY_BINDING_FAILED = -5, // Memory binding failed
+  RDMAXCEL_QP_EX_FAILED = -6, // Failed to get QP extended
+  RDMAXCEL_MLX5DV_QP_EX_FAILED = -7, // Failed to get MLX5DV QP extended
+  RDMAXCEL_MKEY_CREATE_FAILED = -8, // Failed to create mkey
+  RDMAXCEL_WR_COMPLETE_FAILED = -9, // Work request completion failed
+  RDMAXCEL_WC_STATUS_FAILED = -10, // Work completion status failed
+  RDMAXCEL_MKEY_REG_LIMIT = -11, // Memory key registration limit exceeded
+  RDMAXCEL_CUDA_GET_ATTRIBUTE_FAILED =
+      -12, // Failed to get CUDA device attribute
+  RDMAXCEL_CUDA_GET_DEVICE_FAILED = -13, // Failed to get CUDA device handle
+  RDMAXCEL_BUFFER_TOO_SMALL = -14, // Output buffer too small
+  RDMAXCEL_QUERY_DEVICE_FAILED = -15 // Failed to query device attributes
+} rdmaxcel_error_code_t;
+
+// Error/Debugging functions
+void rdmaxcel_print_device_info(struct ibv_context* context);
+const char* rdmaxcel_error_string(int error_code);
+
 // Active segment tracking functions (implemented in C++)
 int rdma_get_active_segment_count();
 int rdma_get_all_segment_info(rdma_segment_info_t* info_array, int max_count);
 bool pt_cuda_allocator_compatibility();
 int register_segments(struct ibv_pd* pd, struct ibv_qp* qp);
+int deregister_segments();
+
+// CUDA utility functions
+int get_cuda_pci_address_from_ptr(
+    hipDeviceptr_t cuda_ptr,
+    char* pci_addr_out,
+    size_t pci_addr_size);
 
 #ifdef __cplusplus
 }
