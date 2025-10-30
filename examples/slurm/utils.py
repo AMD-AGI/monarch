@@ -84,9 +84,9 @@ async def create_proc_mesh(num_hosts, appdef, server_info):
         world_id="foo",
         initializer=TorchXRemoteAllocInitializer(server_info.server_handle),
     )
-    alloc = await allocator.allocate(
+    alloc = allocator.allocate(
         AllocSpec(AllocConstraints(), hosts=num_hosts, gpus=num_gpus_per_host)
     )
 
-    proc_mesh = await ProcMesh.from_alloc(alloc)
+    proc_mesh = ProcMesh.from_alloc(alloc)
     return proc_mesh

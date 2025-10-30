@@ -1,0 +1,56 @@
+FROM docker.io/rocm/megatron-lm:v25.6_py312
+
+ENV USE_TENSOR_ENGINE=0
+ENV CC=clang
+ENV CXX=clang++
+
+RUN apt-get update
+RUN apt-get install -y ninja-build \
+    libunwind-dev \
+    clang
+
+WORKDIR /workspace/
+
+RUN git clone https://github.com/meta-pytorch/monarch.git
+
+WORKDIR /workspace/monarch
+RUN git checkout 2c1106023cf5bb8c1dde68d9d0a38c01c919d1be
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh  -s -- -y
+
+ENV PATH="$PATH:/root/.cargo/bin/"
+
+RUN rustup toolchain install nightly
+RUN rustup default nightly
+
+RUN pip install uv
+
+RUN uv pip install -U --system --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/rocm7.0
+
+RUN uv pip install --system -r build-requirements.txt
+
+RUN ulimit -n 2048 && uv pip install --system --no-build-isolation .
+
+
+COPY libbnxt_re-232.0.155.5.tar.gz /tmp/
+
+# Install the libbnxt driver inside docker if we remove IB_MOUNT_OPTIONS during Docker initialization (due to it will override  /usr/lib/x86_64-linux-gnu/)
+RUN tar xzf /tmp/libbnxt_re-232.0.155.5.tar.gz -C /tmp/ && \
+    rm /tmp/libbnxt_re-232.0.155.5.tar.gz && \
+    mv /tmp/libbnxt_re-* /tmp/libbnxt && \
+    mv /usr/lib/x86_64-linux-gnu/libibverbs/libbnxt_re-rdmav34.so \
+       /usr/lib/x86_64-linux-gnu/libibverbs/libbnxt_re-rdmav34.so.inbox && \
+    cd /tmp/libbnxt && \
+    sh ./autogen.sh && \
+    ./configure && \
+    make clean all install && \
+    echo '/usr/local/lib' > /etc/ld.so.conf.d/libbnxt_re.conf && \
+    ldconfig && \
+    cp -f /tmp/libbnxt/bnxt_re.driver /etc/libibverbs.d/ && \
+    echo "Rebuilding libbnxt done."
+
+WORKDIR /workspace/
+
+RUN uv pip install --system torchao
+RUN uv pip install --system git+https://github.com/pytorch/torchtitan.git
+RUN uv pip install --system pandas==2.3.3
