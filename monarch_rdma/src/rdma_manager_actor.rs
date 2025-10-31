@@ -29,6 +29,10 @@
 //! See test examples: `test_rdma_write_loopback` and `test_rdma_read_loopback`.
 use std::collections::HashMap;
 
+// Import the conditionally re-exported sys crates
+use crate::cuda_sys;
+use crate::rdmaxcel_sys;
+
 use async_trait::async_trait;
 use hyperactor::Actor;
 use hyperactor::ActorId;

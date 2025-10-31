@@ -6,6 +6,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+// Note: Macros reference cuda_sys directly. Users of these macros
+// must have `use crate::cuda_sys;` in their scope.
+
 #[macro_export]
 macro_rules! cu_check {
     ($result:expr) => {

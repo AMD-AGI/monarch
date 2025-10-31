@@ -15,6 +15,10 @@
 
 #[cfg(test)]
 mod tests {
+    // Import the conditionally re-exported sys crates
+    use crate::cuda_sys;
+    use crate::rdmaxcel_sys;
+
     use crate::PollTarget;
     use crate::ibverbs_primitives::get_all_devices;
     use crate::rdma_components::validate_execution_context;

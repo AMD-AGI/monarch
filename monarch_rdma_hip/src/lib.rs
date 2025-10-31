@@ -9,6 +9,17 @@
 // RDMA requires frequent unsafe code blocks
 #![allow(clippy::undocumented_unsafe_blocks)]
 
+// Conditional re-exports for CUDA vs ROCm
+#[cfg(feature = "cuda")]
+pub use cuda_sys;
+#[cfg(feature = "rocm")]
+pub use hip_sys as cuda_sys;
+
+#[cfg(feature = "cuda")]
+pub use rdmaxcel_sys;
+#[cfg(feature = "rocm")]
+pub use rdmaxcel_sys_hip as rdmaxcel_sys;
+
 pub mod device_selection;
 mod ibverbs_primitives;
 mod rdma_components;
@@ -24,18 +35,18 @@ pub use test_utils::is_cuda_available;
 
 /// Print comprehensive RDMA device information for debugging.
 /// Controlled by MONARCH_DEBUG_RDMA environment variable.
-pub fn print_device_info_if_debug_enabled(context: *mut rdmaxcel_sys_hip::ibv_context) {
+pub fn print_device_info_if_debug_enabled(context: *mut rdmaxcel_sys::ibv_context) {
     if std::env::var("MONARCH_DEBUG_RDMA").is_ok() {
         unsafe {
-            rdmaxcel_sys_hip::rdmaxcel_print_device_info(context);
+            rdmaxcel_sys::rdmaxcel_print_device_info(context);
         }
     }
 }
 
 /// Print comprehensive RDMA device information for debugging (always prints).
-pub fn print_device_info(context: *mut rdmaxcel_sys_hip::ibv_context) {
+pub fn print_device_info(context: *mut rdmaxcel_sys::ibv_context) {
     unsafe {
-        rdmaxcel_sys_hip::rdmaxcel_print_device_info(context);
+        rdmaxcel_sys::rdmaxcel_print_device_info(context);
     }
 }
 

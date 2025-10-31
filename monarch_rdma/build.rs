@@ -11,12 +11,50 @@ fn main() {}
 
 #[cfg(not(target_os = "macos"))]
 fn main() {
-    // Validate CUDA installation and get CUDA home path
-    let _cuda_home = match build_utils::validate_cuda_installation() {
-        Ok(home) => home,
-        Err(_) => {
-            build_utils::print_cuda_error_help();
-            std::process::exit(1);
+    // Check USE_ROCM environment variable to decide between CUDA and ROCm
+    let use_rocm = build_utils::use_rocm();
+
+    if use_rocm {
+        println!("cargo:rustc-cfg=feature=\"rocm\"");
+        println!("cargo:rustc-check-cfg=cfg(feature, values(\"rocm\"))");
+    } else {
+        println!("cargo:rustc-cfg=feature=\"cuda\"");
+        println!("cargo:rustc-check-cfg=cfg(feature, values(\"cuda\"))");
+    }
+
+    let accelerator_lib_dir = if use_rocm {
+        // Use ROCm/HIP
+        let _rocm_home = match build_utils::validate_rocm_installation() {
+            Ok(home) => home,
+            Err(_) => {
+                build_utils::print_rocm_error_help();
+                std::process::exit(1);
+            }
+        };
+
+        match build_utils::get_rocm_lib_dir() {
+            Ok(dir) => dir,
+            Err(_) => {
+                build_utils::print_rocm_lib_error_help();
+                std::process::exit(1);
+            }
+        }
+    } else {
+        // Use CUDA
+        let _cuda_home = match build_utils::validate_cuda_installation() {
+            Ok(home) => home,
+            Err(_) => {
+                build_utils::print_cuda_error_help();
+                std::process::exit(1);
+            }
+        };
+
+        match build_utils::get_cuda_lib_dir() {
+            Ok(dir) => dir,
+            Err(_) => {
+                build_utils::print_cuda_lib_error_help();
+                std::process::exit(1);
+            }
         }
     };
 
@@ -39,17 +77,15 @@ fn main() {
         println!("cargo:metadata=LIB_PATH={}", lib_dir);
     }
 
-    // Get CUDA library directory and emit link directives
-    let cuda_lib_dir = match build_utils::get_cuda_lib_dir() {
-        Ok(dir) => dir,
-        Err(_) => {
-            build_utils::print_cuda_lib_error_help();
-            std::process::exit(1);
-        }
-    };
-    println!("cargo:rustc-link-search=native={}", cuda_lib_dir);
-    println!("cargo:rustc-link-lib=cuda");
-    println!("cargo:rustc-link-lib=cudart");
+    // Link against accelerator libraries
+    println!("cargo:rustc-link-search=native={}", accelerator_lib_dir);
+
+    if use_rocm {
+        println!("cargo:rustc-link-lib=amdhip64");
+    } else {
+        println!("cargo:rustc-link-lib=cuda");
+        println!("cargo:rustc-link-lib=cudart");
+    }
 
     // Link against the ibverbs and mlx5 libraries (used by rdmaxcel-sys)
     println!("cargo:rustc-link-lib=ibverbs");
@@ -82,7 +118,12 @@ fn main() {
         println!("cargo:rustc-link-lib=torch_cpu");
         println!("cargo:rustc-link-lib=torch");
         println!("cargo:rustc-link-lib=c10");
-        println!("cargo:rustc-link-lib=c10_cuda");
+
+        if use_rocm {
+            println!("cargo:rustc-link-lib=c10_hip");
+        } else {
+            println!("cargo:rustc-link-lib=c10_cuda");
+        }
     } else {
         // Fallback to torch-sys links metadata if available
         if let Ok(torch_lib_path) = std::env::var("DEP_TORCH_LIB_PATH") {
@@ -98,31 +139,52 @@ fn main() {
     // Disable new dtags, as conda envs generally use `RPATH` over `RUNPATH`
     println!("cargo::rustc-link-arg=-Wl,--disable-new-dtags");
 
-    // Link the static libraries from rdmaxcel-sys
+    // Link the static libraries from rdmaxcel-sys or rdmaxcel-sys-hip
     // Try the Cargo dependency mechanism first, then fall back to fixed paths
-    if let Ok(rdmaxcel_out_dir) = std::env::var("DEP_RDMAXCEL_SYS_OUT_DIR") {
+    let dep_out_dir_var = if use_rocm {
+        "DEP_RDMAXCEL_SYS_HIP_OUT_DIR"
+    } else {
+        "DEP_RDMAXCEL_SYS_OUT_DIR"
+    };
+
+    if let Ok(rdmaxcel_out_dir) = std::env::var(dep_out_dir_var) {
         println!("cargo:rustc-link-search=native={}", rdmaxcel_out_dir);
         println!("cargo:rustc-link-lib=static=rdmaxcel");
         println!("cargo:rustc-link-lib=static=rdmaxcel_cpp");
-        println!("cargo:rustc-link-lib=static=rdmaxcel_cuda");
+
+        if use_rocm {
+            println!("cargo:rustc-link-lib=static=rdmaxcel_hip");
+        } else {
+            println!("cargo:rustc-link-lib=static=rdmaxcel_cuda");
+        }
     } else {
-        eprintln!("Warning: DEP_RDMAXCEL_SYS_OUT_DIR not found. Using fallback paths.");
+        eprintln!("Warning: {} not found. Using fallback paths.", dep_out_dir_var);
 
         // Use relative paths to the known locations
-        let cuda_build_dir = "../rdmaxcel-sys/target/cuda_build";
-        println!("cargo:rustc-link-search=native={}", cuda_build_dir);
-        println!("cargo:rustc-link-lib=static=rdmaxcel_cuda");
+        let (rdmaxcel_dir, build_subdir, lib_name) = if use_rocm {
+            ("../rdmaxcel-sys-hip", "hip_build", "rdmaxcel_hip")
+        } else {
+            ("../rdmaxcel-sys", "cuda_build", "rdmaxcel_cuda")
+        };
+
+        let accelerator_build_dir = format!("{}/target/{}", rdmaxcel_dir, build_subdir);
+        println!("cargo:rustc-link-search=native={}", accelerator_build_dir);
+        println!("cargo:rustc-link-lib=static={}", lib_name);
 
         // Find the most recent rdmaxcel-sys build directory for C/C++ libraries
         let monarch_target_dir = "../target/debug/build";
         if let Ok(entries) = std::fs::read_dir(monarch_target_dir) {
+            let search_prefix = if use_rocm {
+                "rdmaxcel-sys-hip-"
+            } else {
+                "rdmaxcel-sys-"
+            };
+
             let mut rdmaxcel_dirs: Vec<_> = entries
                 .filter_map(|entry| entry.ok())
                 .filter(|entry| {
-                    entry
-                        .file_name()
-                        .to_string_lossy()
-                        .starts_with("rdmaxcel-sys-")
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    name.starts_with(search_prefix) && !name.contains("hip-") // Avoid matching hip when looking for base sys
                 })
                 .collect();
 
@@ -138,7 +200,7 @@ fn main() {
                     println!("cargo:rustc-link-lib=static=rdmaxcel_cpp");
                 }
             } else {
-                eprintln!("Warning: No rdmaxcel-sys build directories found");
+                eprintln!("Warning: No {} build directories found", search_prefix);
             }
         }
     }

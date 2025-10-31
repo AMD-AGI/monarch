@@ -15,6 +15,7 @@ members = [
     "monarch_extension",
     "monarch_tensor_worker",
     "monarch_rdma",
+    "monarch_rdma_auto",
     "monarch_rdma_hip",
     "nccl-sys",
     "rdmaxcel-sys",

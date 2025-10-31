@@ -29,6 +29,10 @@
 use std::ffi::CStr;
 use std::fmt;
 
+// Import the conditionally re-exported sys crates
+use crate::cuda_sys;
+use crate::rdmaxcel_sys;
+
 use hyperactor::Named;
 use serde::Deserialize;
 use serde::Serialize;

@@ -14,3 +14,8 @@ serde = { version = "1.0.185", features = ["derive", "rc"] }
 bindgen = "0.70.1"
 cc = "1.0"
 build_utils = { path = "../build_utils" }
+
+[features]
+default = ["rocm"]
+rocm = []
+cuda = []

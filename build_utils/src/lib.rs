@@ -109,6 +109,15 @@ pub fn get_env_var_with_rerun(name: &str) -> Result<String, std::env::VarError> 
     env::var(name)
 }
 
+/// Check if USE_ROCM environment variable is set to "1"
+/// Returns true if ROCm should be used instead of CUDA
+pub fn use_rocm() -> bool {
+    match get_env_var_with_rerun("USE_ROCM") {
+        Ok(val) => val == "1",
+        Err(_) => false,
+    }
+}
+
 /// Find CUDA home directory using various heuristics
 ///
 /// This function attempts to locate CUDA installation through:

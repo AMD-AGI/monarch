@@ -50,6 +50,10 @@ use std::result::Result;
 use std::thread::sleep;
 use std::time::Duration;
 
+// Import the conditionally re-exported sys crates
+use crate::cuda_sys;
+use crate::rdmaxcel_sys;
+
 use hyperactor::ActorRef;
 use hyperactor::Named;
 use hyperactor::clock::Clock;

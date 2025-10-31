@@ -9,6 +9,17 @@
 // RDMA requires frequent unsafe code blocks
 #![allow(clippy::undocumented_unsafe_blocks)]
 
+// Conditional re-exports for CUDA vs ROCm
+#[cfg(feature = "cuda")]
+pub use cuda_sys;
+#[cfg(feature = "rocm")]
+pub use hip_sys as cuda_sys;
+
+#[cfg(feature = "cuda")]
+pub use rdmaxcel_sys;
+#[cfg(feature = "rocm")]
+pub use rdmaxcel_sys_hip as rdmaxcel_sys;
+
 pub mod device_selection;
 mod ibverbs_primitives;
 mod rdma_components;

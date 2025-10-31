@@ -1,0 +1,19 @@
+[package]
+name = "monarch_rdma_auto"
+version = "0.0.0"
+authors = ["Meta"]
+edition = "2021"
+license = "BSD-3-Clause"
+
+[dependencies]
+# Conditionally include either CUDA or ROCm backend
+monarch_rdma = { path = "../monarch_rdma", optional = true }
+monarch_rdma_hip = { path = "../monarch_rdma_hip", optional = true }
+
+[build-dependencies]
+build_utils = { path = "../build_utils" }
+
+[features]
+default = ["cuda"]
+cuda = ["monarch_rdma"]
+rocm = ["monarch_rdma_hip"]

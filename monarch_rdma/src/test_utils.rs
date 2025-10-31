@@ -10,6 +10,10 @@ use std::sync::Once;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
+// Import the conditionally re-exported sys crates
+use crate::cuda_sys;
+use crate::rdmaxcel_sys;
+
 /// Cached result of CUDA availability check
 static CUDA_AVAILABLE: AtomicBool = AtomicBool::new(false);
 static INIT: Once = Once::new();
