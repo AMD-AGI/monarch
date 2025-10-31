@@ -64,6 +64,14 @@ pub struct CudaConfig {
     pub lib_dirs: Vec<PathBuf>,
 }
 
+/// Configuration structure for HIP/ROCm environment
+#[derive(Debug, Clone, Default)]
+pub struct HipConfig {
+    pub rocm_home: Option<PathBuf>,
+    pub include_dirs: Vec<PathBuf>,
+    pub lib_dirs: Vec<PathBuf>,
+}
+
 /// Result of Python environment discovery
 #[derive(Debug, Clone)]
 pub struct PythonConfig {
@@ -75,6 +83,7 @@ pub struct PythonConfig {
 #[derive(Debug)]
 pub enum BuildError {
     CudaNotFound,
+    RocmNotFound,
     PythonNotFound,
     CommandFailed(String),
     PathNotFound(String),
@@ -84,6 +93,7 @@ impl std::fmt::Display for BuildError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BuildError::CudaNotFound => write!(f, "CUDA installation not found"),
+            BuildError::RocmNotFound => write!(f, "ROCm installation not found"),
             BuildError::PythonNotFound => write!(f, "Python interpreter not found"),
             BuildError::CommandFailed(cmd) => write!(f, "Command failed: {}", cmd),
             BuildError::PathNotFound(path) => write!(f, "Path not found: {}", path),
@@ -274,6 +284,142 @@ pub fn print_cuda_lib_error_help() {
     eprintln!();
     eprintln!("Example: export CUDA_LIB_DIR=/usr/local/cuda-12.0/lib64");
     eprintln!("Or: export CUDA_LIB_DIR=/usr/lib64");
+}
+
+/// Find ROCm home directory using various heuristics
+///
+/// This function attempts to locate ROCm installation through:
+/// 1. ROCM_PATH environment variable
+/// 2. ROCM_HOME environment variable
+/// 3. HIP_PATH environment variable
+/// 4. Finding hipcc in PATH and deriving rocm home
+/// 5. Platform-specific default locations
+pub fn find_rocm_home() -> Option<String> {
+    // Guess #1: Environment variables
+    let mut rocm_home = get_env_var_with_rerun("ROCM_PATH")
+        .ok()
+        .or_else(|| get_env_var_with_rerun("ROCM_HOME").ok())
+        .or_else(|| get_env_var_with_rerun("HIP_PATH").ok());
+
+    if rocm_home.is_none() {
+        // Guess #2: Find hipcc in PATH
+        if let Ok(hipcc_path) = which("hipcc") {
+            // Get parent directory twice (hipcc is in ROCM_HOME/bin)
+            if let Some(rocm_dir) = hipcc_path.parent().and_then(|p| p.parent()) {
+                rocm_home = Some(rocm_dir.to_string_lossy().into_owned());
+            }
+        } else {
+            // Guess #3: Platform-specific defaults
+            // Unix-like systems
+            for candidate in &[
+                "/usr/local/fbcode/platform010/lib/rocm-7.0",
+                "/opt/rocm",
+                "/usr/local/rocm",
+            ] {
+                if Path::new(candidate).exists() {
+                    rocm_home = Some(candidate.to_string());
+                    break;
+                }
+            }
+        }
+    }
+
+    rocm_home
+}
+
+/// Discover ROCm/HIP configuration including home, include dirs, and lib dirs
+pub fn discover_hip_config() -> Result<HipConfig, BuildError> {
+    let rocm_home = find_rocm_home().ok_or(BuildError::RocmNotFound)?;
+    let rocm_home_path = PathBuf::from(&rocm_home);
+
+    let mut config = HipConfig {
+        rocm_home: Some(rocm_home_path.clone()),
+        include_dirs: Vec::new(),
+        lib_dirs: Vec::new(),
+    };
+
+    // Add standard include directories
+    for include_subdir in &["include", "hip/include"] {
+        let include_dir = rocm_home_path.join(include_subdir);
+        if include_dir.exists() {
+            config.include_dirs.push(include_dir);
+        }
+    }
+
+    // Add standard library directories
+    for lib_subdir in &["lib", "lib64"] {
+        let lib_dir = rocm_home_path.join(lib_subdir);
+        if lib_dir.exists() {
+            config.lib_dirs.push(lib_dir);
+            break; // Use first found
+        }
+    }
+
+    Ok(config)
+}
+
+/// Validate ROCm installation exists and is complete
+pub fn validate_rocm_installation() -> Result<String, BuildError> {
+    let hip_config = discover_hip_config()?;
+    let rocm_home = hip_config.rocm_home.ok_or(BuildError::RocmNotFound)?;
+    let rocm_home_str = rocm_home.to_string_lossy().to_string();
+
+    // Verify ROCm include directory exists
+    let rocm_include_path = rocm_home.join("include");
+    if !rocm_include_path.exists() {
+        return Err(BuildError::PathNotFound(format!(
+            "ROCm include directory at {}",
+            rocm_include_path.display()
+        )));
+    }
+
+    Ok(rocm_home_str)
+}
+
+/// Get ROCm library directory
+pub fn get_rocm_lib_dir() -> Result<String, BuildError> {
+    // Check if user explicitly set ROCM_LIB_DIR
+    if let Ok(rocm_lib_dir) = env::var("ROCM_LIB_DIR") {
+        return Ok(rocm_lib_dir);
+    }
+
+    // Try to deduce from ROCm configuration
+    let hip_config = discover_hip_config()?;
+    if let Some(rocm_home) = hip_config.rocm_home {
+        // Check both lib and lib64 paths
+        for lib_subdir in &["lib", "lib64"] {
+            let lib_path = rocm_home.join(lib_subdir);
+            if lib_path.exists() {
+                return Ok(lib_path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    Err(BuildError::PathNotFound(
+        "ROCm library directory".to_string(),
+    ))
+}
+
+/// Print helpful error message for ROCm not found
+pub fn print_rocm_error_help() {
+    eprintln!("Error: ROCm installation not found!");
+    eprintln!("Please ensure ROCm is installed and one of the following is true:");
+    eprintln!("  1. Set ROCM_PATH environment variable to your ROCm installation directory");
+    eprintln!("  2. Set ROCM_HOME environment variable to your ROCm installation directory");
+    eprintln!("  3. Set HIP_PATH environment variable to your ROCm installation directory");
+    eprintln!("  4. Ensure 'hipcc' is in your PATH");
+    eprintln!("  5. Install ROCm to a default location (/opt/rocm, /usr/local/rocm)");
+    eprintln!();
+    eprintln!("Example: export ROCM_PATH=/usr/local/fbcode/platform010/lib/rocm-7.0");
+}
+
+/// Print helpful error message for ROCm lib dir not found
+pub fn print_rocm_lib_error_help() {
+    eprintln!("Error: ROCm library directory not found!");
+    eprintln!("Please set ROCM_LIB_DIR environment variable to your ROCm library directory.");
+    eprintln!();
+    eprintln!("Example: export ROCM_LIB_DIR=/usr/local/fbcode/platform010/lib/rocm-7.0/lib");
+    eprintln!("Or: export ROCM_LIB_DIR=/opt/rocm/lib");
 }
 
 #[cfg(test)]

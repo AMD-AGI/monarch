@@ -34,7 +34,8 @@ fn main() {
     //         std::process::exit(1);
     //     }
     // };
-    let hip_home = "/opt/rocm";
+    // let hip_home = "/opt/rocm";
+    let hip_home = "/usr/local/fbcode/platform010/lib/rocm-7.0";
 
     // Get the directory of the current crate
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| {
@@ -142,7 +143,7 @@ fn main() {
         println!("cargo:rustc-link-search=native={}", lib_dir);
         println!("cargo:metadata=LIB_PATH={}", lib_dir);
     }
-    
+
     // TODO: hardcoding hip_lib_dir for now
     // Get CUDA library directory and emit link directives
     // let cuda_lib_dir = match build_utils::get_cuda_lib_dir() {
@@ -152,7 +153,8 @@ fn main() {
     //         std::process::exit(1);
     //     }
     // };
-    let hip_lib_dir ="/opt/rocm/lib";
+    // let hip_lib_dir ="/opt/rocm/lib";
+    let hip_lib_dir ="/usr/local/fbcode/platform010/lib/rocm-7.0/lib";
     println!("cargo:rustc-link-search=native={}", hip_lib_dir);
 
     // TODO: confirm hip is enough to replace cuda/cudart

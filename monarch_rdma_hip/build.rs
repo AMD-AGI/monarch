@@ -19,7 +19,7 @@ fn main() {
     //         std::process::exit(1);
     //     }
     // };
-    let hip_home = "/opt/rocm";
+    let hip_home = "/usr/local/fbcode/platform010/lib/rocm-7.0";
 
 
     // Include headers and libs from the active environment.
@@ -50,7 +50,7 @@ fn main() {
     //     }
     // };
 
-    let hip_lib_dir ="/opt/rocm/lib";
+    let hip_lib_dir ="/usr/local/fbcode/platform010/lib/rocm-7.0/lib";
     println!("cargo:rustc-link-search=native={}", hip_lib_dir);
 
     // println!("cargo:rustc-link-lib=cuda");
