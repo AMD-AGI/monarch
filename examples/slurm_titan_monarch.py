@@ -16,7 +16,9 @@ os.environ.setdefault("HSA_NO_SCRATCH_RECLAIM", "1")
 os.environ.setdefault("NCCL_PXN_DISABLE", "0")
 os.environ.setdefault("NCCL_P2P_NET_CHUNKSIZE", "262144")
 
-os.environ["MONARCH_EXAMPLE_FOLDER"]=os.getcwd()
+
+MONARCH_EXAMPLE_FOLDER=os.getcwd()
+os.environ["MONARCH_EXAMPLE_FOLDER"]=MONARCH_EXAMPLE_FOLDER
 
 # %% [markdown]
 # ## Monarch + TorchTitan on SLURM
@@ -78,7 +80,7 @@ class RunParams:
         Parameters for your cluster and training job, adjust as needed
     """
     training_steps: int = 50
-    model_config = "/home/mreso/torchtitan/torchtitan/models/llama3/train_configs/debug_model.toml"
+    model_config = f"{MONARCH_EXAMPLE_FOLDER}/../../torchtitan/torchtitan/models/llama3/train_configs/debug_model.toml"
     dataset = "c4"
     num_nodes = num_nodes
     gpus_per_node = 8
@@ -122,10 +124,8 @@ def make_job_config() -> JobConfig:
     default_args = [
         "--job.config_file",
         RunParams.model_config,
-        "--model.tokenizer_path",
-        "/home/mreso/torchtitan/tests/assets/tokenizer/",
-        # "/mnt/models/mreso/torchtitan/assets/hf/Llama-3.1-8B/",
-        # "/mnt/models/mreso/torchtitan/assets/hf/Llama-3.1-70B/",
+        "--model.hf_assets_path",
+        f"{MONARCH_EXAMPLE_FOLDER}/../../torchtitan/assets/hf/Llama-3.1-8B/",
         "--comm.trace_buf_size",
         "0",
         "--metrics.log_freq",
@@ -180,7 +180,7 @@ async def main():
             )
         
         print("SPAWNING TRAINER")
-        trainer = await proc_mesh.spawn("trainer_actor", TrainerActor, job_config)
+        trainer = proc_mesh.spawn("trainer_actor", TrainerActor, job_config)
         # 4. Execute the taining job
         print("CALLING TRAINER")
         await trainer.start_training.call()
