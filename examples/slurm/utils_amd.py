@@ -49,7 +49,7 @@ async def get_appdef(num_hosts: int, host_type: str = HOST_TYPE):
         image=image,
         meshes=[f"mesh0:{num_hosts}:{host_type}"],
         # Use the exec-only bootstrap script
-        program='/mnt/models/mreso/monarch/examples/custom_bootstrap_exec.sh',
+        program='/home/mreso/monarch/examples/custom_bootstrap_exec.sh',
     )
     return appdef
 

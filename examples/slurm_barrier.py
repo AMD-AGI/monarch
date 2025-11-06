@@ -17,12 +17,16 @@ from monarch.actor import Actor, current_rank, endpoint
 from monarch.actor import Actor, current_rank, endpoint
 from monarch.utils import setup_env_for_distributed
 from torch.nn.parallel import DistributedDataParallel as DDP
-from slurm.utils import get_appdef, get_server_info, create_proc_mesh
+from slurm.utils_with_init import get_appdef, get_server_info, create_proc_mesh
 
 os.environ["RUST_BACKTRACE"] = "full"
 os.environ["RUST_LOG"] = "debug"
-os.environ["SBATCH_RESERVATION"] = "MonarchDDP"
-os.environ["TORCH_NCCL_TRACE_BUFFER_SIZE"] = "1000000"
+# os.environ["SBATCH_RESERVATION"] = "mreso_barrier"
+# os.environ["TORCH_NCCL_TRACE_BUFFER_SIZE"] = "1000000"
+
+os.environ["NCCL_IB_RETRY_CNT"]="10"
+os.environ["NCCL_IB_TIMEOUT"]="30"
+# os.environ["TORCH_DISTRIBUTED_DEBUG"] = "INFO"
 
 
 logging.basicConfig(
@@ -62,7 +66,7 @@ class BarrierActor(Actor):
         LOCAL_RANK = int(os.environ["LOCAL_RANK"])
         
         # initialize the process group
-        dist.init_process_group("nccl", rank=self.rank, world_size=WORLD_SIZE, device_id=LOCAL_RANK)
+        dist.init_process_group("nccl")
         self._rprint("Finished initializing torch distributed")
 
     @endpoint
@@ -83,14 +87,18 @@ class BarrierActor(Actor):
         self._rprint(f"{torch.cuda.get_device_name(0)=}")
         self._rprint(f"{torch.cuda.is_initialized()=}")
         t = current_rank().rank * torch.ones(1).to(f'cuda:{LOCAL_RANK}')
+        self._rprint(f"Before all_reduce {t=}")
         torch.distributed.all_reduce(t)
-        self._rprint(f"{t=}")
+        self._rprint(f"After all_reduce {t=}")
         self._rprint("Finished running basic DDP example")
 
 
 async def main():
     num_hosts = 2
     appdef = await get_appdef(num_hosts)
+
+    appdef.roles[0].resource.gpu = 8
+
     server_info = await get_server_info(appdef)
 
     try:
