@@ -57,7 +57,6 @@ if docker run --rm -d --name ${CONTAINER_NAME} \
  --security-opt seccomp=unconfined --group-add video --privileged \
  --device=/dev/infiniband \
  -v ${MONARCH_EXAMPLE_FOLDER}:${MONARCH_EXAMPLE_FOLDER} \
- -v /usr/lib/x86_64-linux-gnu/:/usr/lib/x86_64-linux-gnu/ \
  -v /etc/hosts:/etc/hosts \
  ${DOCKER_IMAGE} \
  /bin/bash -c "tail -f /dev/null"; then

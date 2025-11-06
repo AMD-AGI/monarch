@@ -16,6 +16,8 @@ os.environ.setdefault("HSA_NO_SCRATCH_RECLAIM", "1")
 os.environ.setdefault("NCCL_PXN_DISABLE", "0")
 os.environ.setdefault("NCCL_P2P_NET_CHUNKSIZE", "262144")
 
+os.environ["MONARCH_EXAMPLE_FOLDER"]=os.getcwd()
+
 # %% [markdown]
 # ## Monarch + TorchTitan on SLURM
 # This example notebook demonstrates how you can easily run and iterate on a distributed training job with Monarch and TorchTitan.
@@ -36,7 +38,7 @@ os.environ.setdefault("NCCL_P2P_NET_CHUNKSIZE", "262144")
 
 # %%
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-from slurm.utils_with_init import get_appdef, get_server_info, create_proc_mesh
+from slurm.utils_amd import get_appdef, get_server_info, create_proc_mesh
 num_nodes = 2 # assign for your system
 
 async def setup():
@@ -76,9 +78,7 @@ class RunParams:
         Parameters for your cluster and training job, adjust as needed
     """
     training_steps: int = 50
-    model_config = "/mnt/models/mreso/torchtitan/torchtitan/models/llama3/train_configs/debug_model.toml"
-    # model_config = "/mnt/models/mreso/torchtitan/torchtitan/models/llama3/train_configs/llama3_8b.toml"
-    # model_config = "/mnt/models/mreso/torchtitan/torchtitan/models/llama3/train_configs/llama3_70b.toml"
+    model_config = "/home/mreso/torchtitan/torchtitan/models/llama3/train_configs/debug_model.toml"
     dataset = "c4"
     num_nodes = num_nodes
     gpus_per_node = 8
@@ -123,7 +123,7 @@ def make_job_config() -> JobConfig:
         "--job.config_file",
         RunParams.model_config,
         "--model.tokenizer_path",
-        "/mnt/models/mreso/torchtitan/tests/assets/tokenizer/",
+        "/home/mreso/torchtitan/tests/assets/tokenizer/",
         # "/mnt/models/mreso/torchtitan/assets/hf/Llama-3.1-8B/",
         # "/mnt/models/mreso/torchtitan/assets/hf/Llama-3.1-70B/",
         "--comm.trace_buf_size",
