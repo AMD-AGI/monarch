@@ -17,16 +17,15 @@ from monarch.actor import Actor, current_rank, endpoint
 from monarch.actor import Actor, current_rank, endpoint
 from monarch.utils import setup_env_for_distributed
 from torch.nn.parallel import DistributedDataParallel as DDP
-from slurm.utils_with_init import get_appdef, get_server_info, create_proc_mesh
+from slurm.utils_amd import get_appdef, get_server_info, create_proc_mesh
 
 os.environ["RUST_BACKTRACE"] = "full"
 os.environ["RUST_LOG"] = "debug"
-# os.environ["SBATCH_RESERVATION"] = "mreso_barrier"
-# os.environ["TORCH_NCCL_TRACE_BUFFER_SIZE"] = "1000000"
 
 os.environ["NCCL_IB_RETRY_CNT"]="10"
 os.environ["NCCL_IB_TIMEOUT"]="30"
-# os.environ["TORCH_DISTRIBUTED_DEBUG"] = "INFO"
+
+os.environ["MONARCH_EXAMPLE_FOLDER"]=os.getcwd()
 
 
 logging.basicConfig(
@@ -35,7 +34,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
     force=True,
 )
-
 
 logger: logging.Logger = logging.getLogger(__name__)
 
