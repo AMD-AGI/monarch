@@ -32,7 +32,7 @@ NCCL_DEBUG=INFO
 export DOCKER_IMAGE=${DOCKER_IMAGE:-"docker.io/library/monarch_amd"}
 
 # Use hostname to create unique container name per node
-CONTAINER_NAME="monarch_node_$(hostname)"
+CONTAINER_NAME="monarch_node_$(hostname)_${USER}"
 
 echo "[INIT] Starting Docker container initialization on node $(hostname)"
 echo "[INIT] Container name: ${CONTAINER_NAME}"
