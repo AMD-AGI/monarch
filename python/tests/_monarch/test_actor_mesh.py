@@ -55,18 +55,18 @@ def run_on_tokio(
     """
     return lambda: PythonTask.from_coroutine(fn()).block_on()
 
-
+@pytest.mark.asyncio
 async def alloc() -> Alloc:
     spec = AllocSpec(AllocConstraints(), replicas=3, hosts=8, gpus=8)
     allocator = LocalAllocator()
     return await allocator.allocate_nonblocking(spec)
 
-
+@pytest.mark.asyncio
 async def allocate() -> ProcMesh:
     proc_mesh = await ProcMesh.allocate_nonblocking(await alloc())
     return proc_mesh
 
-
+@pytest.mark.asyncio
 async def allocate_v1() -> ProcMeshV1:
     proc_mesh = await ProcMeshV1.allocate_nonblocking(
         context().actor_instance._as_rust(), await alloc(), "proc_mesh"
@@ -111,6 +111,7 @@ class MyActor:
 @pytest.mark.oss_skip
 @pytest.mark.timeout(30)
 @pytest.mark.parametrize("use_v1", [True, False])
+@pytest.mark.asyncio
 async def test_bind_and_pickling(use_v1: bool) -> None:
     @run_on_tokio
     async def run() -> None:
@@ -138,6 +139,7 @@ async def test_bind_and_pickling(use_v1: bool) -> None:
     run()
 
 
+@pytest.mark.asyncio
 async def spawn_actor_mesh(proc_mesh: Union[ProcMesh, ProcMeshV1]) -> PythonActorMesh:
     if isinstance(proc_mesh, ProcMeshV1):
         actor_mesh = await proc_mesh.spawn_nonblocking(
@@ -164,6 +166,7 @@ async def spawn_actor_mesh(proc_mesh: Union[ProcMesh, ProcMeshV1]) -> PythonActo
     return actor_mesh
 
 
+@pytest.mark.asyncio
 async def cast_to_call(
     actor_mesh: PythonActorMesh,
     instance: Instance,
@@ -172,6 +175,7 @@ async def cast_to_call(
     actor_mesh.cast(message, "all", instance._as_rust())
 
 
+@pytest.mark.asyncio
 async def verify_cast_to_call(
     actor_mesh: PythonActorMesh,
     instance: Instance,
@@ -214,6 +218,7 @@ async def verify_cast_to_call(
 @pytest.mark.oss_skip
 @pytest.mark.timeout(30)
 @pytest.mark.parametrize("use_v1", [True, False])
+@pytest.mark.asyncio
 async def test_cast_handle(use_v1: bool) -> None:
     @run_on_tokio
     async def run() -> None:
@@ -241,6 +246,7 @@ async def test_cast_handle(use_v1: bool) -> None:
 @pytest.mark.oss_skip
 @pytest.mark.timeout(30)
 @pytest.mark.parametrize("use_v1", [True, False])
+@pytest.mark.asyncio
 async def test_cast_ref(use_v1: bool) -> None:
     @run_on_tokio
     async def run() -> None:
@@ -267,6 +273,7 @@ async def test_cast_ref(use_v1: bool) -> None:
 # TODO - re-enable after resolving T232206970
 @pytest.mark.oss_skip
 @pytest.mark.timeout(120)
+@pytest.mark.asyncio
 async def test_host_mesh() -> None:
     @run_on_tokio
     async def run() -> None:

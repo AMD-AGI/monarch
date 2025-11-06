@@ -8,6 +8,7 @@
 
 import multiprocessing
 import os
+import pytest
 import signal
 import time
 from typing import Any, Callable, Coroutine
@@ -61,7 +62,7 @@ def test_no_hang_on_shutdown() -> None:
     assert pid > 0
     assert code == signal.SIGTERM, code
 
-
+@pytest.mark.asyncio
 async def test_allocator() -> None:
     spec = AllocSpec(AllocConstraints(), replica=2)
     allocator = LocalAllocator()
