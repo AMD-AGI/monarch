@@ -6,7 +6,7 @@
 export NCCL_IB_HCA=${NCCL_IB_HCA:="bnxt_re0,bnxt_re1,bnxt_re2,bnxt_re3,bnxt_re4,bnxt_re5,bnxt_re7,bnxt_re8"} # modify based on the GPU NiC settings
 
 # Use hostname to identify the container for this node
-CONTAINER_NAME="monarch_node_$(hostname)"
+CONTAINER_NAME="monarch_node_$(hostname)_${USER}"
 echo "[P${HYPERACTOR_MESH_INDEX}] Starting on $(hostname), container: ${CONTAINER_NAME}"
 
 docker ps --format '{{.Names}}'

@@ -190,18 +190,13 @@ async def main():
         if proc_mesh:
             await proc_mesh.stop()
 
+        commands.kill(f"slurm:///{server_info.name}")
+
 
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
 
-# %% [markdown]
-# ### 4. Destory the SLURM job
-# Once you're done experimenting, free up the allocation
 
-# %%
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
-# commands.kill(f"slurm:///{server_info.name}")
 
 
