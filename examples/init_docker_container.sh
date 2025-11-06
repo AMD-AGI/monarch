@@ -2,8 +2,7 @@
 # This script initializes one Docker container per node
 # It should be called ONCE per node before spawning processes
 
-HOST_MOUNT="/mnt/models/mreso/monarch"
-CONTAINER_MOUNT=${HOST_MOUNT}
+CONTAINER_MOUNT=${MONARCH_EXAMPLE_FOLDER}
 
 export NCCL_IB_DISABLE=1
 
@@ -30,8 +29,6 @@ else
 fi
 
 NCCL_DEBUG=INFO 
-#export DOCKER_IMAGE=${DOCKER_IMAGE:-"docker.io/rocm/megatron-lm:v25.5_py310"}
-# export DOCKER_IMAGE=${DOCKER_IMAGE:-"docker.io/rocm/megatron-lm:v25.6_py312"}
 export DOCKER_IMAGE=${DOCKER_IMAGE:-"docker.io/library/monarch_amd"}
 
 # Use hostname to create unique container name per node
@@ -47,6 +44,8 @@ echo "[INIT] All old containers removed"
 
 echo "[INIT] Creating new container ${CONTAINER_NAME}"
 
+echo "MONARCH_EXAMPLE_FOLDER=${MONARCH_EXAMPLE_FOLDER}"
+
 # Create new container in detached mode to keep it running
 if docker run --rm -d --name ${CONTAINER_NAME} \
  --env NCCL_IB_HCA=${NCCL_IB_HCA} \
@@ -57,8 +56,8 @@ if docker run --rm -d --name ${CONTAINER_NAME} \
  --cap-add=SYS_PTRACE --cap-add=CAP_SYS_ADMIN \
  --security-opt seccomp=unconfined --group-add video --privileged \
  --device=/dev/infiniband \
- -v /mnt/models/mreso/:/mnt/models/mreso/ \
- -v /mnt/models/john/:/mnt/models/john/ \
+ -v ${MONARCH_EXAMPLE_FOLDER}:${MONARCH_EXAMPLE_FOLDER} \
+ -v /etc/hosts:/etc/hosts \
  ${DOCKER_IMAGE} \
  /bin/bash -c "tail -f /dev/null"; then
     
