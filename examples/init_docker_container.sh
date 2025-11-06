@@ -2,7 +2,7 @@
 # This script initializes one Docker container per node
 # It should be called ONCE per node before spawning processes
 
-CONTAINER_MOUNT=${MONARCH_EXAMPLE_FOLDER}
+CONTAINER_MOUNT=${MONARCH_EXAMPLE_FOLDER}/../../
 
 export NCCL_IB_DISABLE=1
 
@@ -56,7 +56,7 @@ if docker run --rm -d --name ${CONTAINER_NAME} \
  --cap-add=SYS_PTRACE --cap-add=CAP_SYS_ADMIN \
  --security-opt seccomp=unconfined --group-add video --privileged \
  --device=/dev/infiniband \
- -v ${MONARCH_EXAMPLE_FOLDER}:${MONARCH_EXAMPLE_FOLDER} \
+ -v ${CONTAINER_MOUNT}:${CONTAINER_MOUNT} \
  -v /etc/hosts:/etc/hosts \
  ${DOCKER_IMAGE} \
  /bin/bash -c "tail -f /dev/null"; then
