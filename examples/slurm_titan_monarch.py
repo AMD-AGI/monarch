@@ -1,7 +1,3 @@
-# %%
-#%cd /mnt/models/mreso/monarch/examples/
-
-# %%
 import os
 os.environ.setdefault("GPU_MAX_HW_QUEUES", "2")
 os.environ.setdefault("TORCH_NCCL_HIGH_PRIORITY", "1")
@@ -17,31 +13,23 @@ os.environ.setdefault("NCCL_PXN_DISABLE", "0")
 os.environ.setdefault("NCCL_P2P_NET_CHUNKSIZE", "262144")
 
 
+from torchtitan.train import Trainer
+from torchtitan.config import ConfigManager, JobConfig
+from monarch.actor import Actor, current_rank, endpoint
+from torchtitan.tools.logging import init_logger, logger
+import torch
+from dataclasses import dataclass
+import os
+from monarch.tools import commands
+from monarch.utils import setup_env_for_distributed
+
+from slurm.utils_amd import get_appdef, get_server_info, create_proc_mesh
+
+num_nodes = 2 # assign for your system
+
 MONARCH_EXAMPLE_FOLDER=os.getcwd()
 os.environ["MONARCH_EXAMPLE_FOLDER"]=MONARCH_EXAMPLE_FOLDER
 
-# %% [markdown]
-# ## Monarch + TorchTitan on SLURM
-# This example notebook demonstrates how you can easily run and iterate on a distributed training job with Monarch and TorchTitan.
-# 
-# #### Prerequisites
-# Please make sure your environment is setup for this notebook:
-# 1. Install Monarch nightly: https://github.com/meta-pytorch/monarch/blob/main/scripts/install_nightly.py
-# 2. Install Titan nightly: https://github.com/pytorch/torchtitan?tab=readme-ov-file#nightly-builds
-# 3. Ensure you have a valid Titan model config in the script directory (i.e: https://github.com/pytorch/torchtitan/blob/main/torchtitan/models/llama3/train_configs/debug_model.toml)
-
-# %% [markdown]
-# ### 1. Reserve your SLURM job
-# If necessary, update paramaters for your cluster:
-# - host_type: TorchX named resource for your cluster (default: "gpu.xlarge")
-# - host_memory: Memory per machine in MB (default: 2062607)
-# 
-# For more information on TorchX resources: https://docs.pytorch.org/torchx/main/specs.html#resource
-
-# %%
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-from slurm.utils_amd import get_appdef, get_server_info, create_proc_mesh
-num_nodes = 2 # assign for your system
 
 async def setup():
 
@@ -57,21 +45,6 @@ async def setup():
 
     return appdef, server_info
 
-# %% [markdown]
-# ### 2. Define your Titan and cluster parameters
-
-# %%
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
-from torchtitan.train import Trainer
-from torchtitan.config import ConfigManager, JobConfig
-from monarch.actor import Actor, current_rank, endpoint
-from torchtitan.tools.logging import init_logger, logger
-import torch
-from dataclasses import dataclass
-import os
-from monarch.tools import commands
-from monarch.utils import setup_env_for_distributed
 
 
 @dataclass
@@ -125,7 +98,8 @@ def make_job_config() -> JobConfig:
         "--job.config_file",
         RunParams.model_config,
         "--model.hf_assets_path",
-        f"{MONARCH_EXAMPLE_FOLDER}/../../torchtitan/assets/hf/Llama-3.1-8B/",
+        f"{MONARCH_EXAMPLE_FOLDER}/../../torchtitan/tests/assets/tokenizer/",
+        # f"{MONARCH_EXAMPLE_FOLDER}/../../torchtitan/assets/hf/Llama-3.1-8B/",
         "--comm.trace_buf_size",
         "0",
         "--metrics.log_freq",
@@ -149,13 +123,6 @@ def make_job_config() -> JobConfig:
     job_config = config_manager.parse_args(default_args)
 
     return job_config
-
-# %% [markdown]
-# ### 3. Execute your training job
-# You can make adjustments and run this on the existing SLURM allocations as many times as you would like!
-
-# %%
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 
 async def main():
     appdef, server_info = await setup()
