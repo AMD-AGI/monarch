@@ -5,7 +5,6 @@
 # This config is important for making sure multi-node test will run, need to configure it carefully depending on the cluster 
 export NCCL_IB_HCA=${NCCL_IB_HCA:="bnxt_re0,bnxt_re1,bnxt_re2,bnxt_re3,bnxt_re4,bnxt_re5,bnxt_re7,bnxt_re8"} # modify based on the GPU NiC settings
 
-hostname
 # Use hostname to identify the container for this node
 CONTAINER_NAME="monarch_node_$(hostname)"
 echo "[P${HYPERACTOR_MESH_INDEX}] Starting on $(hostname), container: ${CONTAINER_NAME}"
@@ -35,7 +34,7 @@ docker exec \
  /bin/bash -c \
  "echo \$(date) [Process ${HYPERACTOR_MESH_INDEX}] ; \
  echo \$(date) [Process ${HYPERACTOR_MESH_INDEX}]: ${HYPERACTOR_MESH_BOOTSTRAP_ADDR} ; \
-   monarch_bootstrap; \
+   LD_LIBRARY_PATH=/opt/ompi/lib:/opt/rocm/lib:/usr/local/lib::/opt/rocm/lib/:/usr/lib/x86_64-linux-gnu/ monarch_bootstrap; \
   echo \$(date) [P${HYPERACTOR_MESH_INDEX}] Completed"
 
 
