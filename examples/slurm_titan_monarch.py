@@ -26,7 +26,6 @@ from monarch.utils import setup_env_for_distributed
 from slurm.utils import get_appdef, get_server_info, create_proc_mesh
 
 num_nodes = 2 # assign for your system
-CWD = os.getcwd()
 MONARCH_EXAMPLE_FOLDER=os.getcwd()
 os.environ["MONARCH_EXAMPLE_FOLDER"]=MONARCH_EXAMPLE_FOLDER
 
@@ -38,7 +37,7 @@ async def setup():
         num_nodes,
         # host_type = ...
         # Use the exec-only bootstrap script, will be passed to hyperactor.host_mesh()
-        program=f'{CWD}/custom_bootstrap_exec.sh',
+        program=f'{MONARCH_EXAMPLE_FOLDER}/custom_bootstrap_exec.sh',
     )
     server_info = await get_server_info(
         appdef,
