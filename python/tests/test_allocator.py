@@ -406,7 +406,7 @@ class TestRemoteAllocator(unittest.IsolatedAsyncioTestCase):
 
             with self.assertRaisesRegex(
                 Exception,
-                r"(?s)fail on init(?s)",
+                r"(?s)fail on init",
             ):
                 await actor_mesh.dummy.call()
 
