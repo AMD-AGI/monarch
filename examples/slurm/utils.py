@@ -38,15 +38,21 @@ HOST_TYPE = "gpu.xlarge"
 HOST_MEMORY = 2062607
 
 
-async def get_appdef(num_hosts: int, host_type: str = HOST_TYPE):
+async def get_appdef(num_hosts: int, host_type: str = HOST_TYPE, program: str = None):
     # similar to Docker image; should contain a conda env in the $img_root/conda/ directory
     # when config.workspace is not None, an ephemeral fbpkg version is created
     # that conda-packs the currently active local conda env AND the directory specified by workspace
     image = "monarch_default_workspace:latest"
 
+    host_mesh_args = {
+        "image":image,
+        "meshes": [f"mesh0:{num_hosts}:{host_type}"],  # mesh_name:num_hosts:host_type
+    }
+    if program:
+        host_mesh_args['program'] = program
+
     appdef = hyperactor.host_mesh(
-        image=image,
-        meshes=[f"mesh0:{num_hosts}:{host_type}"],  # mesh_name:num_hosts:host_type
+        **host_mesh_args,
     )
     return appdef
 
