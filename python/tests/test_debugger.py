@@ -1119,14 +1119,50 @@ function_closure_source = """def func_closure(arg, bp):
 
 
 def load_class_closure():
-    pickled = b'\x80\x05\x95\xc7\x03\x00\x00\x00\x00\x00\x00\x8c\x17cloudpickle.cloudpickle\x94\x8c\x14_make_skeleton_class\x94\x93\x94(\x8c\x08builtins\x94\x8c\x04type\x94\x93\x94\x8c\x08Internal\x94h\x03\x8c\x06object\x94\x93\x94\x85\x94}\x94\x8c\n__module__\x94\x8c\rclass_closure\x94s\x8c 0f63369d5845486db9033c9f3c3253d5\x94Nt\x94R\x94h\x00\x8c\x0f_class_setstate\x94\x93\x94h\x0f}\x94(\x8c\x07__doc__\x94N\x8c\x08__init__\x94h\x00\x8c\x0e_make_function\x94\x93\x94(h\x00\x8c\r_builtin_type\x94\x93\x94\x8c\x08CodeType\x94\x85\x94R\x94(K\x01K\x00K\x00K\x01K\x02K\x13C\n\x88\x00|\x00_\x00d\x00S\x00\x94N\x85\x94\x8c\x03arg\x94\x85\x94\x8c\x04self\x94\x85\x94\x8c"/tmp/monarch_test/class_closure.py\x94\x8c\x08__init__\x94K\tC\x02\n\x01\x94h\x1e\x85\x94)t\x94R\x94}\x94(\x8c\x0b__package__\x94\x8c\x00\x94\x8c\x08__name__\x94h\x0c\x8c\x08__file__\x94h"uNNh\x00\x8c\x10_make_empty_cell\x94\x93\x94)R\x94\x85\x94t\x94R\x94h\x00\x8c\x12_function_setstate\x94\x93\x94h2}\x94}\x94(h+\x8c\x08__init__\x94\x8c\x0c__qualname__\x94\x8c/ClassClosure.closure.<locals>.Internal.__init__\x94\x8c\x0f__annotations__\x94}\x94\x8c\x0e__kwdefaults__\x94N\x8c\x0c__defaults__\x94Nh\x0bh\x0c\x8c\x07__doc__\x94N\x8c\x0b__closure__\x94h\x00\x8c\n_make_cell\x94\x93\x94K\n\x85\x94R\x94\x85\x94\x8c\x17_cloudpickle_submodules\x94]\x94\x8c\x0b__globals__\x94}\x94u\x86\x94\x86R0\x8c\n__module__\x94h\x0c\x8c\x07get_arg\x94h\x16(h\x1b(K\x01K\x00K\x00K\x01K\x01KSC\x0ct\x00\x83\x00\x01\x00|\x00j\x01S\x00\x94h\x1d\x8c\nbreakpoint\x94h\x1e\x86\x94h \x85\x94h"\x8c\x07get_arg\x94K\x0cC\x04\x06\x01\x06\x01\x94))t\x94R\x94h(NNNt\x94R\x94h4hU}\x94}\x94(h+\x8c\x07get_arg\x94h8\x8c.ClassClosure.closure.<locals>.Internal.get_arg\x94h:}\x94h<Nh=Nh\x0bh\x0ch>Nh?NhE]\x94hG}\x94u\x86\x94\x86R0u}\x94\x86\x94\x86R0.'
     # Unpickle `ClassClosure(10).closure()``
+
+    # 1. Define the "magic" properties of this code
+    filename = "/tmp/monarch_test/class_closure.py"
+    module_name = "class_closure"
+
+    # 2. Compile the source, tagging it with the correct filename
+    code_obj = compile(class_closure_source, filename, 'exec')
+
+    # 3. Execute it in a scope, setting the magic globals
+    globals_dict = {'__name__': module_name, '__file__': filename}
+    local_scope = {}
+    exec(code_obj, globals_dict, local_scope)
+    MyClassClosure = local_scope['ClassClosure']
+
+    # 4. Create the object and pickle it
+    obj_to_pickle = MyClassClosure(10).closure()
+    pickled = cloudpickle.dumps(obj_to_pickle)
+
+    # 5. Load it (this is what the test is checking)
     return cloudpickle.loads(pickled)
 
 
 def load_func_closure():
-    pickled = b"\x80\x05\x95\xd9\x02\x00\x00\x00\x00\x00\x00\x8c\x17cloudpickle.cloudpickle\x94\x8c\x0e_make_function\x94\x93\x94(h\x00\x8c\r_builtin_type\x94\x93\x94\x8c\x08CodeType\x94\x85\x94R\x94(K\x01K\x00K\x00K\x01K\x02K\x13C\x18\x88\x01r\x05t\x00\x83\x00\x01\x00|\x00\x83\x00\xa0\x01\xa1\x00\x88\x00\x17\x00S\x00\x94N\x85\x94\x8c\nbreakpoint\x94\x8c\x07get_arg\x94\x86\x94\x8c\x08internal\x94\x85\x94\x8c%/tmp/monarch_test/function_closure.py\x94\x8c\x04func\x94K\x02C\x06\x04\x01\x06\x01\x0e\x01\x94\x8c\x03arg\x94\x8c\x02bp\x94\x86\x94)t\x94R\x94}\x94(\x8c\x0b__package__\x94\x8c\x00\x94\x8c\x08__name__\x94\x8c\x10function_closure\x94\x8c\x08__file__\x94h\x0fuNNh\x00\x8c\x10_make_empty_cell\x94\x93\x94)R\x94h\x1e)R\x94\x86\x94t\x94R\x94h\x00\x8c\x12_function_setstate\x94\x93\x94h#}\x94}\x94(h\x1a\x8c\x04func\x94\x8c\x0c__qualname__\x94\x8c\x1afunc_closure.<locals>.func\x94\x8c\x0f__annotations__\x94}\x94\x8c\x0e__kwdefaults__\x94N\x8c\x0c__defaults__\x94N\x8c\n__module__\x94h\x1b\x8c\x07__doc__\x94N\x8c\x0b__closure__\x94h\x00\x8c\n_make_cell\x94\x93\x94K\x05\x85\x94R\x94h3\x88\x85\x94R\x94\x86\x94\x8c\x17_cloudpickle_submodules\x94]\x94\x8c\x0b__globals__\x94}\x94u\x86\x94\x86R0h\x02(h\x16h\x17NNh\x1e)R\x94h\x1e)R\x94\x86\x94t\x94R\x94h%hB}\x94}\x94(h\x1a\x8c\x04func\x94h)\x8c\x1afunc_closure.<locals>.func\x94h+}\x94h-Nh.Nh/h\x1bh0Nh1h3K\x05\x85\x94R\x94h3\x89\x85\x94R\x94\x86\x94h9]\x94h;}\x94u\x86\x94\x86R0\x86\x94."
-    # Unpickle `(func(5, True), func(5, False))`
+    # Unpickle `(func_closure(5, True), func_closure(5, False))`
+
+    # 1. Define the "magic" properties of this code
+    filename = "/tmp/monarch_test/function_closure.py"
+    module_name = "function_closure"
+
+    # 2. Compile the source, tagging it with the correct filename
+    code_obj = compile(function_closure_source, filename, 'exec')
+
+    # 3. Execute it in a scope, setting the magic globals
+    globals_dict = {'__name__': module_name, '__file__': filename}
+    local_scope = {}
+    exec(code_obj, globals_dict, local_scope)
+    MyFuncClosure = local_scope['func_closure']
+
+    # 4. Create the object and pickle it
+    obj_to_pickle = (MyFuncClosure(5, True), MyFuncClosure(5, False))
+    pickled = cloudpickle.dumps(obj_to_pickle)
+
+    # 5. Load it
     return cloudpickle.loads(pickled)
 
 
