@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-# pyre-unsafe
+# pyre-strict
 
 import asyncio
 from typing import (
@@ -27,7 +27,7 @@ from monarch._rust_bindings.monarch_hyperactor.pytokio import (
 R = TypeVar("R")
 
 
-async def _aincomplete(impl, self):
+async def _aincomplete(impl: Any, self: Any) -> Any:
     try:
         return self._set_result(await impl())
     except Exception as e:
@@ -64,7 +64,7 @@ async def _aincomplete(impl, self):
 
 
 class _Unawaited(NamedTuple):
-    coro: PythonTask
+    coro: PythonTask[Any]
 
 
 class _Complete(NamedTuple):
@@ -80,7 +80,7 @@ class _Asyncio(NamedTuple):
 
 
 class _Tokio(NamedTuple):
-    shared: Shared
+    shared: Shared[Any]
 
 
 _Status = _Unawaited | _Complete | _Exception | _Asyncio | _Tokio
@@ -98,7 +98,7 @@ class Future(Generic[R]):
 
     """
 
-    def __init__(self, *, coro: "Coroutine[Any, Any, R] | PythonTask[R]"):
+    def __init__(self, *, coro: "Coroutine[Any, Any, R] | PythonTask[R]") -> None:
         self._status: _Status = _Unawaited(
             coro if isinstance(coro, PythonTask) else PythonTask.from_coroutine(coro)
         )
@@ -138,12 +138,20 @@ class Future(Generic[R]):
                     fut = loop.create_future()
                     self._status = _Asyncio(fut)
 
-                    async def mark_complete():
+                    def set_result(fut: asyncio.Future[R], value: R) -> None:
+                        if not fut.cancelled():
+                            fut.set_result(value)
+
+                    def set_exception(fut: asyncio.Future[R], e: Exception) -> None:
+                        if not fut.cancelled():
+                            fut.set_exception(e)
+
+                    async def mark_complete() -> None:
                         try:
-                            func, value = fut.set_result, await coro
+                            func, value = set_result, await coro
                         except Exception as e:
-                            func, value = fut.set_exception, e
-                        loop.call_soon_threadsafe(func, value)
+                            func, value = set_exception, e
+                        loop.call_soon_threadsafe(func, fut, value)
 
                     PythonTask.from_coroutine(mark_complete()).spawn()
                     return fut.__await__()
@@ -184,7 +192,7 @@ class Future(Generic[R]):
     def result(self, timeout: Optional[float] = None) -> R:
         return self.get(timeout)
 
-    def exception(self, timeout: Optional[float] = None):
+    def exception(self, timeout: Optional[float] = None) -> Optional[Exception]:
         try:
             self.get(timeout)
             return None

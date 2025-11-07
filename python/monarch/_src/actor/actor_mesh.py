@@ -4,12 +4,13 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-# pyre-unsafe
+# pyre-strict
 
 import abc
 import collections
 import contextvars
 import functools
+import importlib
 import inspect
 import itertools
 import logging
@@ -17,6 +18,8 @@ import threading
 from abc import abstractproperty
 
 from dataclasses import dataclass
+
+from functools import cache
 from pprint import pformat
 from textwrap import indent
 from traceback import TracebackException
@@ -89,6 +92,8 @@ from monarch._src.actor.shape import MeshTrait, NDSlice
 from monarch._src.actor.sync_state import fake_sync_state
 from monarch._src.actor.telemetry import METER
 from monarch._src.actor.tensor_engine_shim import actor_rref, actor_send
+from opentelemetry.metrics import Counter
+from opentelemetry.trace import Tracer
 from typing_extensions import Self
 
 if TYPE_CHECKING:
@@ -99,11 +104,9 @@ if TYPE_CHECKING:
     from monarch._src.actor.proc_mesh import _ControllerController, ProcMesh
 from monarch._src.actor.telemetry import get_monarch_tracer
 
-CallMethod = PythonMessageKind.CallMethod
-
 logger: logging.Logger = logging.getLogger(__name__)
 
-TRACER = get_monarch_tracer()
+TRACER: Tracer = get_monarch_tracer()
 
 Allocator = ProcessAllocator | LocalAllocator
 
@@ -161,12 +164,18 @@ class Instance(abc.ABC):
     rank: Point
     proc_mesh: "ProcMesh"
     _controller_controller: "_ControllerController"
+    name: str  # the name this actor was given on spawn
+    class_name: str  # the fully qualified class name of the actor.
+    creator: Optional[
+        "CreatorInstance"
+    ]  # information about the actor who spawned this actor
+    # None if this actor is the spawning actor.
 
     # this property is used to hold the handles to actors and processes launched by this actor
     # in order to keep them alive until this actor exits.
-    _children: "Optional[List[ActorMesh | ProcMesh]]"
+    _children: "Optional[List[ActorMesh[Any] | ProcMesh]]"
 
-    def _add_child(self, child: "ActorMesh | ProcMesh") -> None:
+    def _add_child(self, child: "ActorMesh[Any] | ProcMesh") -> None:
         if self._children is None:
             self._children = [child]
         else:
@@ -178,6 +187,47 @@ class Instance(abc.ABC):
     @staticmethod
     def _as_py(ins: HyInstance) -> "Instance":
         return cast(Instance, ins)
+
+    def _as_creator(self) -> "CreatorInstance":
+        return CreatorInstance(
+            self.rank,
+            self.proc_mesh,
+            self.proc,
+            self.name,
+            self.class_name,
+            self.creator,
+        )
+
+    def __repr__(self) -> str:
+        return _qualified_name(self)
+
+
+@dataclass
+class CreatorInstance:
+    """
+    An instance that can be serialized so it can be passed around
+    to describe the creation hierarchy of an actor instance.
+    """
+
+    rank: Point
+    proc_mesh: "ProcMesh"
+    proc: "ProcMesh"
+    name: str
+    class_name: Optional[str]
+    creator: Optional["CreatorInstance"]
+
+    def __repr__(self) -> str:
+        return _qualified_name(self)
+
+
+def _qualified_name(ins: "CreatorInstance | Instance | None") -> str:
+    names = []
+    while ins:
+        class_prefix = "" if ins.class_name is None else f"{ins.class_name} "
+        rank_postfix = str(ins.rank) if len(ins.rank) > 0 else ""
+        names.append(f"<{class_prefix}{ins.name}{rank_postfix}>")
+        ins = ins.creator
+    return ".".join(reversed(names))
 
 
 @rust_struct("monarch_hyperactor::context::Context")
@@ -209,6 +259,51 @@ class Context:
 _context: contextvars.ContextVar[Context] = contextvars.ContextVar(
     "monarch.actor_mesh._context"
 )
+
+
+@cache
+def _monarch_actor() -> Any:
+    return importlib.import_module("monarch.actor")
+
+
+class _ActorFilter(logging.Filter):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def filter(self, record: Any) -> bool:
+        fn = _monarch_actor().per_actor_logging_prefix
+        ctx = _context.get(None)
+        if ctx is not None and fn is not None:
+            record.msg = fn(ctx.actor_instance) + record.msg
+        return True
+
+
+def per_actor_logging_prefix(instance: Instance | CreatorInstance) -> str:
+    return f"[actor={instance}] "
+
+
+@cache
+def _init_context_log_handler() -> None:
+    af: _ActorFilter = _ActorFilter()
+    logger = logging.getLogger()
+    for handler in logger.handlers:
+        handler.addFilter(af)
+
+    _original_addHandler: Any = logging.Logger.addHandler
+
+    def _patched_addHandler(self: logging.Logger, hdlr: logging.Handler) -> None:
+        _original_addHandler(self, hdlr)
+        if af not in hdlr.filters:
+            hdlr.addFilter(af)
+
+    # pyre-ignore[8]: Intentionally monkey-patching Logger.addHandler
+    logging.Logger.addHandler = _patched_addHandler
+
+
+def _set_context(c: Context) -> None:
+    _init_context_log_handler()
+    _context.set(c)
+
 
 T = TypeVar("T")
 
@@ -258,7 +353,7 @@ def context() -> Context:
     c = _context.get(None)
     if c is None:
         c = Context._root_client_context()
-        _context.set(c)
+        _set_context(c)
 
         from monarch._src.actor.host_mesh import create_local_host_mesh
         from monarch._src.actor.proc_mesh import _get_controller_controller
@@ -377,7 +472,7 @@ class _SingletonActorAdapator:
         raise NotImplementedError("stop()")
 
     def initialized(self) -> "PythonTask[None]":
-        async def empty():
+        async def empty() -> None:
             pass
 
         return PythonTask.from_coroutine(empty())
@@ -402,10 +497,10 @@ class ActorEndpoint(Endpoint[P, R]):
         self._signature: inspect.Signature = inspect.signature(impl)
         self._explicit_response_port = explicit_response_port
 
-    def _call_name(self) -> Any:
+    def _call_name(self) -> MethodSpecifier:
         return self._name
 
-    def _check_arguments(self, args, kwargs):
+    def _check_arguments(self, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
         if self._explicit_response_port:
             self._signature.bind(None, None, *args, **kwargs)
         else:
@@ -415,7 +510,7 @@ class ActorEndpoint(Endpoint[P, R]):
         self,
         args: Tuple[Any, ...],
         kwargs: Dict[str, Any],
-        port: "Optional[Port]" = None,
+        port: "Optional[Port[R]]" = None,
         selection: Selection = "all",
     ) -> Extent:
         """
@@ -449,7 +544,7 @@ class ActorEndpoint(Endpoint[P, R]):
         r._set_monitor(monitor)
         return (p, r)
 
-    def _rref(self, args, kwargs):
+    def _rref(self, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> R:
         self._check_arguments(args, kwargs)
         refs, buffer = flatten((args, kwargs), _is_ref_or_mailbox)
 
@@ -479,7 +574,7 @@ def as_endpoint(
     *,
     propagate: Propagator = None,
     explicit_response_port: bool = False,
-):
+) -> Any:
     if not isinstance(not_an_endpoint, NotAnEndpoint):
         raise ValueError("expected an method of a spawned actor")
     kind = (
@@ -557,7 +652,7 @@ class ValueMesh(MeshTrait, Generic[R]):
         remapped = [self._hy.get(pos[g]) for g in shape.ranks()]
         return ValueMesh(shape, remapped)
 
-    def item(self, **kwargs) -> R:
+    def item(self, **kwargs: int) -> R:
         """
         Get the value at the given coordinates.
 
@@ -621,10 +716,10 @@ class ValueMesh(MeshTrait, Generic[R]):
     def _labels(self) -> Iterable[str]:
         return self._shape.labels
 
-    def __getstate__(self):
+    def __getstate__(self) -> Dict[str, Any]:
         return {"shape": self._shape, "values": self._hy.values()}
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: Dict[str, Any]) -> None:
         self._shape = state["shape"]
         vals = state["values"]
         self._hy = HyValueMesh(self._shape, vals)
@@ -634,7 +729,7 @@ def send(
     endpoint: Endpoint[P, R],
     args: Tuple[Any, ...],
     kwargs: Dict[str, Any],
-    port: "Optional[Port]" = None,
+    port: "Optional[Port[R]]" = None,
     selection: Selection = "all",
 ) -> None:
     """
@@ -690,7 +785,7 @@ class Port(Generic[R]):
             PythonMessage(PythonMessageKind.Exception(self._rank), _pickle(obj)),
         )
 
-    def __reduce__(self):
+    def __reduce__(self) -> Tuple[Any, Tuple[Any, ...]]:
         """
         When Port is sent over the wire, we do not want to send the actor instance
         from the current context. Instead, we want to reconstruct the Port with
@@ -698,7 +793,9 @@ class Port(Generic[R]):
         from through this port.
         """
 
-        def _reconstruct_port(port_ref, rank):
+        def _reconstruct_port(
+            port_ref: PortRef | OncePortRef, rank: Optional[int]
+        ) -> "Port[R]":
             instance = context().actor_instance._as_rust()
             return Port(port_ref, instance, rank)
 
@@ -714,7 +811,7 @@ class DroppingPort:
     Makes sure any exception sent to it causes the actor to report an exception.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def send(self, obj: Any) -> None:
@@ -810,7 +907,7 @@ class PortReceiver(Generic[R]):
     def ranked(self) -> "RankedPortReceiver[R]":
         return RankedPortReceiver[R](self._mailbox, self._receiver, self._monitor)
 
-    def _set_monitor(self, monitor: "Optional[Shared[Exception]]"):
+    def _set_monitor(self, monitor: "Optional[Shared[Exception]]") -> None:
         self._monitor = monitor
 
 
@@ -834,7 +931,7 @@ singleton_shape = Shape([], NDSlice(offset=0, sizes=[], strides=[]))
 #  we need to signal to the consumer of the PythonTask object that the thread really isn't in an async context.
 # We do this by blanking out the running event loop during the call to the synchronous actor function.
 
-MESSAGES_HANDLED = METER.create_counter("py_mesages_handled")
+MESSAGES_HANDLED: Counter = METER.create_counter("py_mesages_handled")
 
 
 class _Actor:
@@ -870,7 +967,7 @@ class _Actor:
         # response_port can be None. If so, then sending to port will drop the response,
         # and raise any exceptions to the caller.
         try:
-            _context.set(ctx)
+            _set_context(ctx)
 
             DebugContext.set(DebugContext())
 
@@ -879,8 +976,16 @@ class _Actor:
             match method:
                 case MethodSpecifier.Init():
                     ins = ctx.actor_instance
-                    Class, ins.proc_mesh, ins._controller_controller, *args = args
+                    (
+                        Class,
+                        ins.proc_mesh,
+                        ins._controller_controller,
+                        ins.name,
+                        ins.creator,
+                        *args,
+                    ) = args
                     ins.rank = ctx.message_rank
+                    ins.class_name = f"{Class.__module__}.{Class.__qualname__}"
                     try:
                         self.instance = Class(*args, **kwargs)
                         self._maybe_exit_debugger()
@@ -968,7 +1073,7 @@ class _Actor:
                 pass
             raise
 
-    def _maybe_exit_debugger(self, do_continue=True) -> None:
+    def _maybe_exit_debugger(self, do_continue: bool = True) -> None:
         if (pdb_wrapper := DebugContext.get().pdb_wrapper) is not None:
             if do_continue:
                 pdb_wrapper.clear_all_breaks()
@@ -976,7 +1081,7 @@ class _Actor:
             pdb_wrapper.end_debug_session()
         DebugContext.set(DebugContext())
 
-    def _post_mortem_debug(self, exc_tb) -> None:
+    def _post_mortem_debug(self, exc_tb: Any) -> None:
         from monarch._src.actor.debugger.debug_controller import debug_controller
 
         if (pdb_wrapper := DebugContext.get().pdb_wrapper) is not None:
@@ -996,7 +1101,7 @@ class _Actor:
     def _handle_undeliverable_message(
         self, cx: Context, message: UndeliverableMessageEnvelope
     ) -> bool:
-        _context.set(cx)
+        _set_context(cx)
         handle_undeliverable = getattr(
             self.instance, "_handle_undeliverable_message", None
         )
@@ -1005,8 +1110,8 @@ class _Actor:
         else:
             return False
 
-    def __supervise__(self, cx: Context, *args, **kwargs) -> object:
-        _context.set(cx)
+    def __supervise__(self, cx: Context, *args: Any, **kwargs: Any) -> object:
+        _set_context(cx)
         instance = self.instance
         if instance is None:
             # This could happen because of the following reasons. Both
@@ -1083,7 +1188,7 @@ class Actor(MeshTrait):
         )
 
     @property
-    def initialized(self):
+    def initialized(self) -> Any:
         raise NotImplementedError(
             "actor implementations are not meshes, but we can't convince the typechecker of it..."
         )
@@ -1164,9 +1269,9 @@ class ActorMesh(MeshTrait, Generic[T]):
         self,
         name: MethodSpecifier,
         impl: Callable[Concatenate[Any, P], Awaitable[R]],
-        propagator: Any,
+        propagator: Propagator,
         explicit_response_port: bool,
-    ):
+    ) -> Any:
         return ActorEndpoint(
             self._inner,
             self._shape,
@@ -1181,6 +1286,7 @@ class ActorMesh(MeshTrait, Generic[T]):
     def _create(
         cls,
         Class: Type[T],
+        name: str,
         actor_mesh: "PythonActorMesh",
         shape: Shape,
         proc_mesh: "ProcMesh",
@@ -1203,7 +1309,18 @@ class ActorMesh(MeshTrait, Generic[T]):
             None,
             False,
         )
-        send(ep, (mesh._class, proc_mesh, controller_controller, *args), kwargs)
+        send(
+            ep,
+            (
+                mesh._class,
+                proc_mesh,
+                controller_controller,
+                name,
+                context().actor_instance._as_creator(),
+                *args,
+            ),
+            kwargs,
+        )
 
         return mesh
 
@@ -1215,7 +1332,9 @@ class ActorMesh(MeshTrait, Generic[T]):
     ) -> "ActorMesh[T]":
         return cls(Class, _SingletonActorAdapator(actor_id), singleton_shape, None)
 
-    def __reduce_ex__(self, protocol: ...) -> "Tuple[Type[ActorMesh], Tuple[Any, ...]]":
+    def __reduce_ex__(
+        self, protocol: Any
+    ) -> "Tuple[Type[ActorMesh[T]], Tuple[Any, ...]]":
         return ActorMesh, (self._class, self._inner, self._shape, self._proc_mesh)
 
     @property
@@ -1269,7 +1388,7 @@ class ActorError(Exception):
             )
             for s in actor_mesh_ref_tb
         )
-        self.exception_formatted = "".join(actor_mesh_ref_tb)
+        self.exception_formatted: str = "".join(actor_mesh_ref_tb)
         self.message = message
 
     def __str__(self) -> str:

@@ -682,8 +682,6 @@ async def test_sigsegv_handling():
 )
 @pytest.mark.timeout(30)
 async def test_supervision_with_proc_mesh_stopped(mesh) -> None:
-    # This test doesn't want the client process to crash during testing.
-    monarch.actor.unhandled_fault_hook = lambda failure: None
     proc = mesh({"gpus": 1})
     actor_mesh = proc.spawn("healthy", HealthyActor)
 
@@ -693,7 +691,8 @@ async def test_supervision_with_proc_mesh_stopped(mesh) -> None:
 
     # new call should fail with check of health state of actor mesh
     with pytest.raises(
-        SupervisionError, match="actor mesh is stopped due to proc mesh shutdown"
+        SupervisionError,
+        match="actor mesh is stopped due to proc mesh shutdown|Actor .* exited because of the following reason.*stopped",
     ):
         await actor_mesh.check.call()
 
@@ -750,13 +749,13 @@ async def test_slice_supervision() -> None:
     slice_2 = error_mesh.slice(gpus=2)
     slice_3 = error_mesh.slice(gpus=3)
 
-    # Trigger supervision error on gpus=3
-    with pytest.raises(SupervisionError, match="did not handle supervision event"):
-        await slice_3.fail_with_supervision_error.call()
-
     match = (
         "Actor .* (is unhealthy with reason:|exited because of the following reason:)"
     )
+    # Trigger supervision error on gpus=3
+    with pytest.raises(SupervisionError, match=match):
+        await slice_3.fail_with_supervision_error.call()
+
     # Mesh containing all gpus is unhealthy
     with pytest.raises(SupervisionError, match=match):
         await error_mesh.check.call()

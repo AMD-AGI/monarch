@@ -9,6 +9,7 @@
 import asyncio
 import ctypes
 import importlib.resources
+import io
 import logging
 import operator
 import os
@@ -20,9 +21,10 @@ import threading
 import time
 import unittest
 import unittest.mock
+from contextlib import contextmanager
 from tempfile import TemporaryDirectory
 from types import ModuleType
-from typing import cast, Tuple
+from typing import Any, cast, Tuple
 
 import monarch.actor
 import pytest
@@ -67,7 +69,6 @@ from monarch.actor import (
 )
 from monarch.tools.config import defaults
 from typing_extensions import assert_type
-
 
 needs_cuda = pytest.mark.skipif(
     not torch.cuda.is_available(),
@@ -149,6 +150,9 @@ async def test_mesh_passed_to_mesh():
     proc = fake_in_process_host().spawn_procs(per_host={"gpus": 2})
     f = proc.spawn("from", From)
     t = proc.spawn("to", To)
+    # Make sure t is initialized before sending to f. Otherwise
+    # f might call t.whoami before t.__init__.
+    await t.whoami.call()
     all = [y for x in f.fetch.stream(t) for y in await x]
     assert len(all) == 4
     assert all[0] != all[1]
@@ -160,6 +164,9 @@ async def test_mesh_passed_to_mesh_on_different_proc_mesh():
     proc2 = fake_in_process_host().spawn_procs(per_host={"gpus": 2})
     f = proc.spawn("from", From)
     t = proc2.spawn("to", To)
+    # Make sure t is initialized before sending to f. Otherwise
+    # f might call t.whoami before t.__init__.
+    await t.whoami.call()
     all = [y for x in f.fetch.stream(t) for y in await x]
     assert len(all) == 4
     assert all[0] != all[1]
@@ -1327,7 +1334,6 @@ async def test_sync_workspace() -> None:
 @pytest.mark.timeout(120)
 async def test_actor_mesh_stop() -> None:
     # This test doesn't want the client process to crash during testing.
-    monarch.actor.unhandled_fault_hook = lambda failure: None
     pm = this_host().spawn_procs(per_host={"gpus": 2})
     am_1 = pm.spawn("printer", Printer)
     am_2 = pm.spawn("printer2", Printer)
@@ -1407,11 +1413,6 @@ def test_mesh_len():
     proc_mesh = fake_in_process_host().spawn_procs(per_host={"gpus": 12})
     s = proc_mesh.spawn("sleep_actor", SleepActor)
     assert 12 == len(s)
-    # FIXME: Actually figure out what's going on here.
-    # Call an endpoint on the actor before the test
-    # exits. Otherwise we might get a fatal PyGILState_Release
-    # error.
-    s.sleep.call(1).get()
 
 
 class UndeliverableMessageReceiver(Actor):
@@ -1686,3 +1687,106 @@ def test_login_job():
             assert v == "hello!"
 
         j.kill()
+
+
+_global_foo = None
+
+
+def setup_with_spawn() -> None:
+    global _global_foo
+    proc = this_proc()
+    # Doesn't matter which actor is spawned, just make sure it persists.
+    _global_foo = proc.spawn("foo", Counter, 0)
+    _global_foo.incr.call().get()
+    # Spawn one that dies to make sure it doesn't cause any issues.
+    bar = proc.spawn("bar", Counter, 0)
+    bar.incr.call().get()
+
+
+async def async_setup_with_spawn() -> None:
+    global _global_foo
+    proc = this_proc()
+    # Doesn't matter which actor is spawned, just make sure it persists.
+    _global_foo = proc.spawn("foo", Counter, 0)
+    await _global_foo.incr.call()
+    # Spawn one that dies to make sure it doesn't cause any issues.
+    bar = proc.spawn("bar", Counter, 0)
+    await bar.incr.call()
+
+
+# oss_skip: passes internally but fails on CI with "ValueError: error spawning proc mesh: statuses: Timeout(30.000905376s)=0..1"
+@pytest.mark.oss_skip
+def test_setup() -> None:
+    procs = this_host().spawn_procs(bootstrap=setup_with_spawn)
+    counter = procs.spawn("counter", Counter, 0)
+    counter.incr.call().get()
+    # Make sure no errors occur in the meantime
+    time.sleep(10)
+
+
+# oss_skip: passes internally but fails on CI with "ValueError: error spawning proc mesh: statuses: Timeout(30.000905376s)=0..1"
+@pytest.mark.oss_skip
+def test_setup_async() -> None:
+    procs = this_host().spawn_procs(bootstrap=async_setup_with_spawn)
+    counter = procs.spawn("counter", Counter, 0)
+    counter.incr.call().get()
+    # Make sure no errors occur in the meantime
+    time.sleep(10)
+
+
+class CaptureLogs:
+    def __init__(self):
+        log_stream = io.StringIO()
+        handler = logging.StreamHandler(log_stream)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+
+        logger = logging.getLogger("capture")
+        logger.setLevel(logging.INFO)
+        logger.addHandler(handler)
+
+        self.log_stream = log_stream
+        self.logger = logger
+
+    @property
+    def contents(self) -> str:
+        return self.log_stream.getvalue()
+
+
+class Named(Actor):
+    @endpoint
+    def report(self) -> Any:
+        logs = CaptureLogs()
+        logs.logger.error("HUH")
+        assert "test_python_actors.Named the_name{'f': 0/2}>" in logs.contents
+
+        return context().actor_instance.creator, str(context().actor_instance)
+
+
+def test_instance_name():
+    cr, result = (
+        this_host()
+        .spawn_procs(per_host={"f": 2})
+        .spawn("the_name", Named)
+        .slice(f=0)
+        .report.call_one()
+        .get()
+    )
+    assert "test_python_actors.Named the_name{'f': 0/2}>" in result
+    assert cr.name == "root"
+    assert str(context().actor_instance) == "<root>"
+
+    logs = CaptureLogs()
+    logs.logger.error("HUH")
+    assert "actor=<root>" in logs.contents
+    default = monarch.actor.per_actor_logging_prefix
+    try:
+        monarch.actor.per_actor_logging_prefix = lambda inst: "<test>"
+        logs = CaptureLogs()
+        logs.logger.error("HUH")
+        assert "<test>" in logs.contents
+        monarch.actor.per_actor_logging_prefix = None
+        # make sure we can set _per_actor_logging_prefix to none.
+        logs = CaptureLogs()
+        logs.logger.error("HUH")
+    finally:
+        monarch.actor.per_actor_logging_prefix = default

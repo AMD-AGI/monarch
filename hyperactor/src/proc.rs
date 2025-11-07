@@ -46,6 +46,7 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::Instrument;
+use tracing::Level;
 use uuid::Uuid;
 
 use crate as hyperactor;
@@ -333,6 +334,7 @@ impl Proc {
     }
 
     /// Create a new direct-addressed proc.
+    #[tracing::instrument]
     pub async fn direct(addr: ChannelAddr, name: String) -> Result<Self, ChannelError> {
         let (addr, rx) = channel::serve(addr)?;
         let proc_id = ProcId::Direct(addr, name);
@@ -342,6 +344,7 @@ impl Proc {
     }
 
     /// Create a new direct-addressed proc with a default sender for the forwarder.
+    #[tracing::instrument(skip(default))]
     pub fn direct_with_default(
         addr: ChannelAddr,
         name: String,
@@ -391,16 +394,17 @@ impl Proc {
 
     fn handle_supervision_event(&self, event: ActorSupervisionEvent) {
         let result = match self.state().supervision_coordinator_port.get() {
-            Some(port) => port.send(event).map_err(anyhow::Error::from),
+            Some(port) => port.send(event.clone()).map_err(anyhow::Error::from),
             None => Err(anyhow::anyhow!(
                 "coordinator port is not set for proc {}",
-                self.proc_id()
+                self.proc_id(),
             )),
         };
         if let Err(err) = result {
             tracing::error!(
-                "proc {}: could not propagate supervision event: {:?}: crashing",
+                "proc {}: could not propagate supervision event {} due to error: {:?}: crashing",
                 self.proc_id(),
+                event,
                 err
             );
 
@@ -491,15 +495,18 @@ impl Proc {
         params: A::Params,
     ) -> Result<ActorHandle<A>, anyhow::Error> {
         let actor_id = self.allocate_root_id(name)?;
-        let _ = tracing::debug_span!(
+        let span = tracing::span!(
+            Level::INFO,
             "spawn_actor",
             actor_name = name,
             actor_type = std::any::type_name::<A>(),
             actor_id = actor_id.to_string(),
         );
-        let (instance, mut actor_loop_receivers, work_rx) =
-            Instance::new(self.clone(), actor_id.clone(), false, None);
-        let actor = A::new(params).await?;
+        let (instance, mut actor_loop_receivers, work_rx) = {
+            let _guard = span.clone().entered();
+            Instance::new(self.clone(), actor_id.clone(), false, None)
+        };
+        let actor = A::new(params).instrument(span.clone()).await?;
         // Add this actor to the proc's actor ledger. We do not actively remove
         // inactive actors from ledger, because the actor's state can be inferred
         // from its weak cell.
@@ -509,6 +516,7 @@ impl Proc {
 
         instance
             .start(actor, actor_loop_receivers.take().unwrap(), work_rx)
+            .instrument(span)
             .await
     }
 

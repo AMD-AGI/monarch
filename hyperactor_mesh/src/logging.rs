@@ -47,27 +47,18 @@ use hyperactor::data::Serialized;
 use hyperactor::declare_attrs;
 use hyperactor_telemetry::env;
 use hyperactor_telemetry::log_file_path;
-use notify::Event;
-use notify::Watcher;
 use serde::Deserialize;
 use serde::Serialize;
-use tokio::fs;
 use tokio::io;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
-use tokio::io::AsyncSeek;
-use tokio::io::AsyncSeekExt;
 use tokio::io::AsyncWriteExt;
-use tokio::io::BufReader;
-use tokio::io::SeekFrom;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
 use tokio::sync::RwLock;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::watch::Receiver;
 use tokio::task::JoinHandle;
+use tracing::Level;
 
 use crate::bootstrap::BOOTSTRAP_LOG_CHANNEL;
 use crate::shortuuid::ShortUuid;
@@ -406,11 +397,6 @@ impl LogSender for LocalLogSender {
                 output_target: target,
                 payload: Serialized::serialize(&payload)?,
             });
-        } else {
-            tracing::debug!(
-                "log sender {} is not active, skip sending log",
-                self.tx.addr()
-            )
         }
 
         Ok(())
@@ -421,11 +407,6 @@ impl LogSender for LocalLogSender {
         if TxStatus::Active == *self.status.borrow() {
             // Do not use tx.send, it will block the allocator as the child process state is unknown.
             self.tx.post(LogMessage::Flush { sync_version: None });
-        } else {
-            tracing::debug!(
-                "log sender {} is not active, skip sending flush message",
-                self.tx.addr()
-            );
         }
         Ok(())
     }
@@ -477,14 +458,16 @@ impl FileAppender {
                     return None;
                 }
             };
-        let (stdout_addr, stdout_rx) =
+        let (stdout_addr, stdout_rx) = {
+            let _guard = tracing::span!(Level::INFO, "appender", file = "stdout").entered();
             match channel::serve(ChannelAddr::any(ChannelTransport::Unix)) {
                 Ok((addr, rx)) => (addr, rx),
                 Err(e) => {
                     tracing::warn!("failed to serve stdout channel: {}", e);
                     return None;
                 }
-            };
+            }
+        };
         let stdout_stop = stop.clone();
         let stdout_task = tokio::spawn(file_monitor_task(
             stdout_rx,
@@ -502,14 +485,16 @@ impl FileAppender {
                     return None;
                 }
             };
-        let (stderr_addr, stderr_rx) =
+        let (stderr_addr, stderr_rx) = {
+            let _guard = tracing::span!(Level::INFO, "appender", file = "stderr").entered();
             match channel::serve(ChannelAddr::any(ChannelTransport::Unix)) {
                 Ok((addr, rx)) => (addr, rx),
                 Err(e) => {
                     tracing::warn!("failed to serve stderr channel: {}", e);
                     return None;
                 }
-            };
+            }
+        };
         let stderr_stop = stop.clone();
         let stderr_task = tokio::spawn(file_monitor_task(
             stderr_rx,
@@ -769,7 +754,7 @@ async fn tee(
             line.push_str("... [TRUNCATED]");
         }
         let final_line = if let Some(ref p) = prefix {
-            format!("[{}# {}", p, line)
+            format!("[{}] {}", p, line)
         } else {
             line
         };
@@ -855,7 +840,7 @@ impl StreamFwder {
         file_monitor_addr: Option<ChannelAddr>,
         target: OutputTarget,
         max_buffer_size: usize,
-        log_channel: ChannelAddr,
+        log_channel: Option<ChannelAddr>,
         pid: u32,
         local_rank: usize,
     ) -> Self {
@@ -884,10 +869,20 @@ impl StreamFwder {
         file_monitor_addr: Option<ChannelAddr>,
         target: OutputTarget,
         max_buffer_size: usize,
-        log_channel: ChannelAddr,
+        log_channel: Option<ChannelAddr>,
         pid: u32,
         prefix: Option<String>,
     ) -> Self {
+        // Sanity: when there is no file sink, no log forwarding, and
+        // `tail_size == 0`, the child should have **inherited** stdio
+        // and no `StreamFwder` should exist. In that case console
+        // mirroring happens via inheritance, not via `StreamFwder`.
+        // If we hit this, we piped unnecessarily.
+        debug_assert!(
+            file_monitor_addr.is_some() || max_buffer_size > 0 || log_channel.is_some(),
+            "StreamFwder started with no sinks and no tail"
+        );
+
         let stop = Arc::new(Notify::new());
         let recent_lines_buf = RotatingLineBuffer {
             recent_lines: Arc::new(RwLock::new(VecDeque::<String>::with_capacity(
@@ -896,12 +891,16 @@ impl StreamFwder {
             max_buffer_size,
         };
 
-        let log_sender = match LocalLogSender::new(log_channel, pid) {
-            Ok(log_sender) => Some(Box::new(log_sender) as Box<dyn LogSender + Send>),
-            Err(e) => {
-                tracing::error!("failed to create log sender: {}", e);
-                None
+        let log_sender: Option<Box<dyn LogSender + Send>> = if let Some(addr) = log_channel {
+            match LocalLogSender::new(addr, pid) {
+                Ok(s) => Some(Box::new(s) as Box<dyn LogSender + Send>),
+                Err(e) => {
+                    tracing::error!("failed to create log sender: {}", e);
+                    None
+                }
             }
+        } else {
+            None
         };
 
         let teer_stop = stop.clone();
@@ -946,113 +945,6 @@ impl StreamFwder {
     pub async fn peek(&self) -> Vec<String> {
         self.recent_lines_buf.peek().await
     }
-}
-
-/// Result of processing file content
-#[derive(Debug)]
-struct FileProcessingResult {
-    /// Complete lines found during processing
-    lines: Vec<Vec<u8>>,
-    /// Updated position in the file after processing
-    new_position: u64,
-    /// Any remaining incomplete line data, buffered for subsequent reads
-    incomplete_line_buffer: Vec<u8>,
-}
-
-/// Process new file content from a given position, extracting complete lines
-/// This function is extracted to enable easier unit testing without file system dependencies
-async fn process_file_content<R: AsyncRead + AsyncSeek + Unpin>(
-    reader: &mut R,
-    current_position: u64,
-    file_size: u64,
-    existing_line_buffer: Vec<u8>,
-    max_buffer_size: usize,
-) -> Result<FileProcessingResult> {
-    // If position equals file size, we're at the end
-    if current_position == file_size {
-        return Ok(FileProcessingResult {
-            lines: Vec::new(),
-            new_position: current_position,
-            incomplete_line_buffer: existing_line_buffer,
-        });
-    }
-
-    // Handle potential file truncation/rotation
-    let actual_position = if current_position > file_size {
-        tracing::warn!(
-            "File appears to have been truncated (position {} > file size {}), resetting to start",
-            current_position,
-            file_size
-        );
-        reader.seek(SeekFrom::Start(0)).await?;
-        0
-    } else {
-        // current_position < file_size
-        reader.seek(SeekFrom::Start(current_position)).await?;
-        current_position
-    };
-
-    let mut buf = vec![0u8; 128 * 1024];
-    let mut line_buffer = existing_line_buffer;
-    let mut lines = Vec::with_capacity(max_buffer_size);
-    let mut processed_bytes = 0u64;
-
-    loop {
-        let bytes_read = reader.read(&mut buf).await?;
-        if bytes_read == 0 {
-            break;
-        }
-
-        let chunk = &buf[..bytes_read];
-
-        let mut start = 0;
-        while let Some(newline_pos) = chunk[start..].iter().position(|&b| b == b'\n') {
-            let absolute_pos = start + newline_pos;
-
-            line_buffer.extend_from_slice(&chunk[start..absolute_pos]);
-
-            if !line_buffer.is_empty() {
-                if line_buffer.len() > MAX_LINE_SIZE {
-                    line_buffer.truncate(MAX_LINE_SIZE);
-                    line_buffer.extend_from_slice(b"... [TRUNCATED]");
-                }
-
-                let line_data = std::mem::replace(&mut line_buffer, Vec::with_capacity(2048));
-                lines.push(line_data);
-            }
-
-            start = absolute_pos + 1;
-
-            // Check if we've reached the max buffer size after adding each line
-            if lines.len() >= max_buffer_size {
-                // We've processed up to and including the current newline
-                // The new position is where we should start reading next time
-                let new_position = actual_position + processed_bytes + start as u64;
-
-                // Don't save remaining data - we'll re-read it from the new position
-                return Ok(FileProcessingResult {
-                    lines,
-                    new_position,
-                    incomplete_line_buffer: Vec::new(),
-                });
-            }
-        }
-
-        // Only add bytes to processed_bytes if we've fully processed this chunk
-        processed_bytes += bytes_read as u64;
-
-        if start < chunk.len() {
-            line_buffer.extend_from_slice(&chunk[start..]);
-        }
-    }
-
-    let new_position = actual_position + processed_bytes;
-
-    Ok(FileProcessingResult {
-        lines,
-        new_position,
-        incomplete_line_buffer: line_buffer,
-    })
 }
 
 /// Messages that can be sent to the LogForwarder
@@ -1551,6 +1443,7 @@ pub mod test_tap {
 
 #[cfg(test)]
 mod tests {
+
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -1563,10 +1456,120 @@ mod tests {
     use hyperactor::mailbox::DialMailboxRouter;
     use hyperactor::mailbox::MailboxServer;
     use hyperactor::proc::Proc;
+    use tokio::io::AsyncSeek;
+    use tokio::io::AsyncSeekExt;
     use tokio::io::AsyncWriteExt;
+    use tokio::io::SeekFrom;
     use tokio::sync::mpsc;
 
     use super::*;
+
+    /// Result of processing file content
+    #[derive(Debug)]
+    struct FileProcessingResult {
+        /// Complete lines found during processing
+        lines: Vec<Vec<u8>>,
+        /// Updated position in the file after processing
+        new_position: u64,
+        /// Any remaining incomplete line data, buffered for subsequent reads
+        incomplete_line_buffer: Vec<u8>,
+    }
+
+    /// Process new file content from a given position, extracting complete lines
+    /// This function is extracted to enable easier unit testing without file system dependencies
+    async fn process_file_content<R: AsyncRead + AsyncSeek + Unpin>(
+        reader: &mut R,
+        current_position: u64,
+        file_size: u64,
+        existing_line_buffer: Vec<u8>,
+        max_buffer_size: usize,
+    ) -> Result<FileProcessingResult> {
+        // If position equals file size, we're at the end
+        if current_position == file_size {
+            return Ok(FileProcessingResult {
+                lines: Vec::new(),
+                new_position: current_position,
+                incomplete_line_buffer: existing_line_buffer,
+            });
+        }
+
+        // Handle potential file truncation/rotation
+        let actual_position = if current_position > file_size {
+            tracing::warn!(
+                "File appears to have been truncated (position {} > file size {}), resetting to start",
+                current_position,
+                file_size
+            );
+            reader.seek(SeekFrom::Start(0)).await?;
+            0
+        } else {
+            // current_position < file_size
+            reader.seek(SeekFrom::Start(current_position)).await?;
+            current_position
+        };
+
+        let mut buf = vec![0u8; 128 * 1024];
+        let mut line_buffer = existing_line_buffer;
+        let mut lines = Vec::with_capacity(max_buffer_size);
+        let mut processed_bytes = 0u64;
+
+        loop {
+            let bytes_read = reader.read(&mut buf).await?;
+            if bytes_read == 0 {
+                break;
+            }
+
+            let chunk = &buf[..bytes_read];
+
+            let mut start = 0;
+            while let Some(newline_pos) = chunk[start..].iter().position(|&b| b == b'\n') {
+                let absolute_pos = start + newline_pos;
+
+                line_buffer.extend_from_slice(&chunk[start..absolute_pos]);
+
+                if !line_buffer.is_empty() {
+                    if line_buffer.len() > MAX_LINE_SIZE {
+                        line_buffer.truncate(MAX_LINE_SIZE);
+                        line_buffer.extend_from_slice(b"... [TRUNCATED]");
+                    }
+
+                    let line_data = std::mem::replace(&mut line_buffer, Vec::with_capacity(2048));
+                    lines.push(line_data);
+                }
+
+                start = absolute_pos + 1;
+
+                // Check if we've reached the max buffer size after adding each line
+                if lines.len() >= max_buffer_size {
+                    // We've processed up to and including the current newline
+                    // The new position is where we should start reading next time
+                    let new_position = actual_position + processed_bytes + start as u64;
+
+                    // Don't save remaining data - we'll re-read it from the new position
+                    return Ok(FileProcessingResult {
+                        lines,
+                        new_position,
+                        incomplete_line_buffer: Vec::new(),
+                    });
+                }
+            }
+
+            // Only add bytes to processed_bytes if we've fully processed this chunk
+            processed_bytes += bytes_read as u64;
+
+            if start < chunk.len() {
+                line_buffer.extend_from_slice(&chunk[start..]);
+            }
+        }
+
+        let new_position = actual_position + processed_bytes;
+
+        Ok(FileProcessingResult {
+            lines,
+            new_position,
+            incomplete_line_buffer: line_buffer,
+        })
+    }
 
     #[tokio::test]
     async fn test_forwarding_log_to_client() {
@@ -1664,12 +1667,14 @@ mod tests {
             "Expected deserialization to fail with invalid UTF-8 bytes"
         );
     }
+    #[allow(dead_code)]
     struct MockLogSender {
         log_sender: mpsc::UnboundedSender<(OutputTarget, String)>, // (output_target, content)
         flush_called: Arc<Mutex<bool>>,                            // Track if flush was called
     }
 
     impl MockLogSender {
+        #[allow(dead_code)]
         fn new(log_sender: mpsc::UnboundedSender<(OutputTarget, String)>) -> Self {
             Self {
                 log_sender,
@@ -1814,7 +1819,7 @@ mod tests {
             file_monitor_addr,
             OutputTarget::Stdout,
             3, // max_buffer_size
-            log_channel,
+            Some(log_channel),
             12345, // pid
             None,  // no prefix
         );

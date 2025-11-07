@@ -8,6 +8,7 @@
 
 import asyncio
 import importlib
+import inspect
 import json
 import logging
 import os
@@ -17,6 +18,7 @@ from pathlib import Path
 
 from typing import (
     Any,
+    Awaitable,
     Callable,
     cast,
     Dict,
@@ -238,7 +240,7 @@ class ProcMesh(MeshTrait):
         host_mesh: "HostMesh",
         hy_proc_mesh: "Shared[HyProcMesh]",
         region: Region,
-        setup: Callable[[], None] | None = None,
+        setup: Callable[[], None] | Callable[[], Awaitable[None]] | None = None,
         _attach_controller_controller: bool = True,
     ) -> "ProcMesh":
         pm = ProcMesh(hy_proc_mesh, host_mesh, region, region, None)
@@ -251,13 +253,16 @@ class ProcMesh(MeshTrait):
         async def task(
             pm: "ProcMesh",
             hy_proc_mesh_task: "Shared[HyProcMesh]",
-            setup_actor: Optional["SetupActor"],
+            setup_actor: "SetupActor | AsyncSetupActor | None",
             stream_log_to_client: bool,
         ) -> HyProcMesh:
             hy_proc_mesh = await hy_proc_mesh_task
 
             await pm._logging_manager.init(hy_proc_mesh, stream_log_to_client)
 
+            # If the user has passed the setup lambda, we need to call
+            # it here before any of the other python actors are spawned so
+            # that the environment variables are set up before cuda init.
             if setup_actor is not None:
                 await setup_actor.setup.call()
 
@@ -265,13 +270,16 @@ class ProcMesh(MeshTrait):
 
         setup_actor = None
         if setup is not None:
-            from monarch._src.actor.proc_mesh import SetupActor  # noqa
+            from monarch._src.actor.proc_mesh import AsyncSetupActor, SetupActor  # noqa
 
-            # If the user has passed the setup lambda, we need to call
-            # it here before any of the other actors are spawned so that
-            # the environment variables are set up before cuda init.
+            actor_type = (
+                AsyncSetupActor if inspect.iscoroutinefunction(setup) else SetupActor
+            )
+            # The SetupActor needs to be spawned outside of `task` for now,
+            # since spawning a python actor requires a blocking call to
+            # pickle the proc mesh, and we can't do that from the tokio runtime.
             setup_actor = pm._spawn_nonblocking_on(
-                hy_proc_mesh, "setup", SetupActor, setup
+                hy_proc_mesh, "setup", actor_type, setup
             )
 
         pm._proc_mesh = PythonTask.from_coroutine(
@@ -279,12 +287,6 @@ class ProcMesh(MeshTrait):
         ).spawn()
 
         return pm
-
-    def __repr__(self) -> str:
-        return repr(self._proc_mesh)
-
-    def __str__(self) -> str:
-        return str(self._proc_mesh)
 
     def _spawn_nonblocking(
         self, name: str, Class: Type[TActor], *args: Any, **kwargs: Any
@@ -313,6 +315,7 @@ class ProcMesh(MeshTrait):
         )
         service = ActorMesh._create(
             Class,
+            name,
             actor_mesh,
             self._region.as_shape(),
             self,
@@ -402,8 +405,9 @@ class ProcMesh(MeshTrait):
         instance = context().actor_instance._as_rust()
 
         async def _stop_nonblocking(instance: HyInstance) -> None:
+            pm = await self._proc_mesh
             await PythonTask.spawn_blocking(lambda: self._logging_manager.flush())
-            await (await self._proc_mesh).stop_nonblocking(instance)
+            await pm.stop_nonblocking(instance)
             self._stopped = True
 
         return Future(coro=_stop_nonblocking(instance))

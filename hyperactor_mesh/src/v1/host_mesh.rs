@@ -14,6 +14,7 @@ use hyperactor::config;
 use hyperactor::config::CONFIG;
 use hyperactor::config::ConfigAttr;
 use hyperactor::declare_attrs;
+use hyperactor::host::Host;
 use ndslice::view::CollectMeshExt;
 
 pub mod mesh_agent;
@@ -39,8 +40,11 @@ use ndslice::view::RegionParseError;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::Bootstrap;
 use crate::alloc::Alloc;
 use crate::bootstrap::BootstrapCommand;
+use crate::bootstrap::BootstrapProcManager;
+use crate::proc_mesh::DEFAULT_TRANSPORT;
 use crate::resource;
 use crate::resource::CreateOrUpdateClient;
 use crate::resource::GetRankStatus;
@@ -55,6 +59,7 @@ use crate::v1::ProcMesh;
 use crate::v1::ProcMeshRef;
 use crate::v1::StatusMesh;
 use crate::v1::ValueMesh;
+use crate::v1::host_mesh::mesh_agent::HostAgentMode;
 pub use crate::v1::host_mesh::mesh_agent::HostMeshAgent;
 use crate::v1::host_mesh::mesh_agent::HostMeshAgentProcMeshTrampoline;
 use crate::v1::host_mesh::mesh_agent::ProcState;
@@ -211,6 +216,103 @@ enum HostMeshAllocation {
 }
 
 impl HostMesh {
+    /// Bring up a local single-host mesh and, in the launcher
+    /// process, return a `HostMesh` handle for it.
+    ///
+    /// There are two execution modes:
+    ///
+    /// - bootstrap-child mode: if `Bootstrap::get_from_env()` says
+    ///   this process was launched as a bootstrap child, we call
+    ///   `boot.bootstrap().await`, which hands control to the
+    ///   bootstrap logic for this process (as defined by the
+    ///   `BootstrapCommand` the parent used to spawn it). if that
+    ///   call returns, we log the error and terminate. this branch
+    ///   does not produce a `HostMesh`.
+    ///
+    /// - launcher mode: otherwise, we are the process that is setting
+    ///   up the mesh. we create a `Host`, spawn a `HostMeshAgent` in
+    ///   it, and build a single-host `HostMesh` around that. that
+    ///   `HostMesh` is returned to the caller.
+    ///
+    /// This API is intended for tests, examples, and local bring-up,
+    /// not production.
+    ///
+    /// TODO: fix up ownership
+    pub async fn local() -> v1::Result<HostMesh> {
+        Self::local_with_bootstrap(BootstrapCommand::current()?).await
+    }
+
+    /// Same as [`local`], but the caller supplies the
+    /// `BootstrapCommand` instead of deriving it from the current
+    /// process.
+    ///
+    /// The provided `bootstrap_cmd` is used when spawning bootstrap
+    /// children and determines the behavior of
+    /// `boot.bootstrap().await` in those children.
+    pub async fn local_with_bootstrap(bootstrap_cmd: BootstrapCommand) -> v1::Result<HostMesh> {
+        if let Ok(Some(boot)) = Bootstrap::get_from_env() {
+            let err = boot.bootstrap().await;
+            tracing::error!("failed to bootstrap local host mesh process: {}", err);
+            std::process::exit(1);
+        }
+
+        let addr = config::global::get_cloned(DEFAULT_TRANSPORT).any();
+
+        let manager = BootstrapProcManager::new(bootstrap_cmd)?;
+        let (host, _handle) = Host::serve(manager, addr).await?;
+        let addr = host.addr().clone();
+        let host_mesh_agent = host
+            .system_proc()
+            .clone()
+            .spawn::<HostMeshAgent>("agent", HostAgentMode::Process(host))
+            .await
+            .map_err(v1::Error::SingletonActorSpawnError)?;
+        host_mesh_agent.bind::<HostMeshAgent>();
+
+        let host = HostRef(addr);
+        let host_mesh_ref =
+            HostMeshRef::new(Name::new("local"), extent!(hosts = 1).into(), vec![host])?;
+        Ok(HostMesh::take(host_mesh_ref))
+    }
+
+    /// Create a new process-based host mesh. Each host is represented by a local process,
+    /// which manages its set of procs. This is not a true host mesh the sense that each host
+    /// is not independent. The intent of `process` is for testing, examples, and experimentation.
+    ///
+    /// The bootstrap command is used to bootstrap both hosts and processes, thus it should be
+    /// a command that reaches [`crate::bootstrap_or_die`]. `process` is itself a valid bootstrap
+    /// entry point; thus using `BootstrapCommand::current` works correctly as long as `process`
+    /// is called early in the lifecycle of the process and reached unconditionally.
+    ///
+    /// TODO: thread through ownership
+    pub async fn process(extent: Extent, command: BootstrapCommand) -> v1::Result<HostMesh> {
+        if let Ok(Some(boot)) = Bootstrap::get_from_env() {
+            let err = boot.bootstrap().await;
+            tracing::error!("failed to bootstrap process host mesh process: {}", err);
+            std::process::exit(1);
+        }
+
+        let transport = config::global::get_cloned(DEFAULT_TRANSPORT);
+        let mut hosts = Vec::with_capacity(extent.num_ranks());
+        for _ in 0..extent.num_ranks() {
+            // Note: this can be racy. Possibly we should have a callback channel.
+            let addr = transport.any();
+            let bootstrap = Bootstrap::Host {
+                addr: addr.clone(),
+                command: Some(command.clone()),
+                config: Some(config::global::attrs()),
+            };
+
+            let mut cmd = command.new();
+            bootstrap.to_env(&mut cmd);
+            cmd.spawn()?;
+            hosts.push(HostRef(addr));
+        }
+
+        let host_mesh_ref = HostMeshRef::new(Name::new("process"), extent.into(), hosts)?;
+        Ok(HostMesh::take(host_mesh_ref))
+    }
+
     /// Allocate a host mesh from an [`Alloc`]. This creates a HostMesh with the same extent
     /// as the provided alloc. Allocs generate procs, and thus we define and run a Host for each
     /// proc allocated by it.
@@ -526,6 +628,7 @@ pub struct HostMeshRef {
 impl HostMeshRef {
     /// Create a new (raw) HostMeshRef from the provided region and associated
     /// ranks, which must match in cardinality.
+    #[allow(clippy::result_large_err)]
     fn new(name: Name, region: Region, ranks: Vec<HostRef>) -> v1::Result<Self> {
         if region.num_ranks() != ranks.len() {
             return Err(v1::Error::InvalidRankCardinality {
@@ -555,6 +658,7 @@ impl HostMeshRef {
     ///
     /// Currently, spawn issues direct calls to each host agent. This will be fixed by
     /// maintaining a comm actor on the host service procs themselves.
+    #[allow(clippy::result_large_err)]
     pub async fn spawn(
         &self,
         cx: &impl context::Actor,
@@ -793,6 +897,7 @@ impl HostMeshRef {
 
     /// Get the state of all procs with Name in this host mesh.
     /// The procs iterator must be in rank order.
+    #[allow(clippy::result_large_err)]
     pub(crate) async fn proc_states(
         &self,
         cx: &impl context::Actor,
@@ -854,7 +959,10 @@ impl HostMeshRef {
             } else {
                 // Timeout error, stop reading from the receiver and send back what we have so far,
                 // padding with failed states.
-                tracing::warn!("Timeout waiting for response from host mesh agent for proc_states");
+                tracing::warn!(
+                    "Timeout waiting for response from host mesh agent for proc_states after {:?}",
+                    timeout
+                );
                 let all_ranks = (0..num_ranks).collect::<HashSet<_>>();
                 let completed_ranks = states.iter().map(|(rank, _)| *rank).collect::<HashSet<_>>();
                 let mut leftover_ranks = all_ranks.difference(&completed_ranks).collect::<Vec<_>>();

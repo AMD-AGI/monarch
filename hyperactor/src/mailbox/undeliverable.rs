@@ -13,10 +13,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate as hyperactor; // for macros
-use crate::ActorId;
 use crate::Message;
 use crate::Named;
-use crate::PortId;
 use crate::actor::ActorStatus;
 use crate::id;
 use crate::mailbox::DeliveryError;
@@ -31,6 +29,13 @@ use crate::supervision::ActorSupervisionEvent;
 /// [MessageEnvelope]).
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Named)]
 pub struct Undeliverable<M: Message>(pub M);
+
+impl<M: Message> Undeliverable<M> {
+    /// Return the inner M-typed message.
+    pub fn into_inner(self) -> M {
+        self.0
+    }
+}
 
 // Port handle and receiver for undeliverable messages.
 pub(crate) fn new_undeliverable_port() -> (
@@ -103,45 +108,28 @@ pub(crate) fn return_undeliverable(
 /// Errors that occur during message delivery and return.
 pub enum UndeliverableMessageError {
     /// Delivery of a message to its destination failed.
-    #[error("a message from {from} to {to} was undeliverable and returned: {error:?}")]
+    #[error(
+        "a message from {} to {} was undeliverable and returned: {:?}: {envelope}", 
+        .envelope.sender(),
+        .envelope.dest(),
+        .envelope.error_msg()
+    )]
     DeliveryFailure {
-        /// The sender of the message.
-        from: ActorId,
-        /// The destination of the message.
-        to: PortId,
-        /// Details of why the message couldn't be delivered.
-        error: Option<String>,
+        /// The undelivered message.
+        envelope: MessageEnvelope,
     },
 
     /// Delivery of an undeliverable message back to its sender
     /// failed.
-    #[error("returning an undeliverable message to sender {sender} failed: {error:?}")]
+    #[error(
+        "returning an undeliverable message to sender {} failed: {:?}: {envelope}",
+        .envelope.sender(),
+        .envelope.error_msg()
+    )]
     ReturnFailure {
-        /// The actor the message was to be returned to.
-        sender: ActorId,
-
-        /// Details of why the return failed.
-        error: Option<String>,
+        /// The undelivered message.
+        envelope: MessageEnvelope,
     },
-}
-
-impl UndeliverableMessageError {
-    /// Constructs `DeliveryFailure` from a failed delivery attempt.
-    pub fn delivery_failure(envelope: &MessageEnvelope) -> Self {
-        UndeliverableMessageError::DeliveryFailure {
-            from: envelope.sender().clone(),
-            to: envelope.dest().clone(),
-            error: envelope.error_msg(),
-        }
-    }
-
-    /// Constructs a `ReturnFailure` from a failed return attempt.
-    pub fn return_failure(envelope: &MessageEnvelope) -> Self {
-        UndeliverableMessageError::ReturnFailure {
-            sender: envelope.sender().clone(),
-            error: envelope.error_msg(),
-        }
-    }
 }
 
 /// Drain undeliverables and convert them into

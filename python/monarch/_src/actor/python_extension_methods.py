@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-# pyre-unsafe
+# pyre-strict
 
 import importlib
 
@@ -15,7 +15,7 @@ T = TypeVar("T")
 
 
 class PatchRustClass:
-    def __init__(self, rust_class: Type):
+    def __init__(self, rust_class: Type[T]) -> None:
         self.rust_class = rust_class
 
     def __call__(self, python_class: Type[T]) -> Type[T]:
@@ -25,9 +25,14 @@ class PatchRustClass:
             raise ValueError(f"mismatched type names {rust_name} != {python_name}")
         for name, implementation in python_class.__dict__.items():
             if hasattr(self.rust_class, name):
-                # do not patch in the stub methods that
-                # are already defined by the rust implementation
-                continue
+                the_attr = getattr(self.rust_class, name)
+                is_object_default = name.startswith("__") and getattr(
+                    the_attr, "__qualname__", ""
+                ).startswith("object.")
+                if not is_object_default:
+                    # do not patch in the stub methods that
+                    # are already defined by the rust implementation
+                    continue
             if not callable(implementation) and not isinstance(
                 implementation, property
             ):

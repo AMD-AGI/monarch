@@ -14,10 +14,10 @@
 use core::net::SocketAddr;
 use std::fmt;
 use std::net::IpAddr;
-use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 #[cfg(target_os = "linux")]
 use std::os::linux::net::SocketAddrExt;
+use std::panic::Location;
 use std::str::FromStr;
 
 use async_trait::async_trait;
@@ -35,7 +35,6 @@ use crate::Named;
 use crate::RemoteMessage;
 use crate::attrs::AttrValue;
 use crate::channel::sim::SimAddr;
-use crate::config;
 use crate::simnet::SimNetError;
 
 pub(crate) mod local;
@@ -111,28 +110,24 @@ pub enum TxStatus {
 pub trait Tx<M: RemoteMessage>: std::fmt::Debug {
     /// Enqueue a `message` on the local end of the channel. The
     /// message is either delivered, or we eventually discover that
-    /// the channel has failed and it will be sent back on `return_handle`.
-    // TODO: the return channel should be SendError<M> directly, and we should drop
-    // the returned result.
+    /// the channel has failed and it will be sent back on `return_channel`.
     #[allow(clippy::result_large_err)] // TODO: Consider reducing the size of `SendError`.
-    fn try_post(&self, message: M, return_channel: oneshot::Sender<M>) -> Result<(), SendError<M>>;
+    // TODO: Consider making return channel optional to indicate that the log can be dropped.
+    fn try_post(&self, message: M, return_channel: oneshot::Sender<SendError<M>>);
 
-    /// Enqueue a message to be sent on the channel. The caller is expected to monitor
-    /// the channel status for failures.
+    /// Enqueue a message to be sent on the channel.
     fn post(&self, message: M) {
-        // We ignore errors here because the caller is meant to monitor the channel's
-        // status, rather than rely on this function to report errors.
-        let _ignore = self.try_post(message, oneshot::channel().0);
+        self.try_post(message, oneshot::channel().0);
     }
 
     /// Send a message synchronously, returning when the messsage has
     /// been delivered to the remote end of the channel.
     async fn send(&self, message: M) -> Result<(), SendError<M>> {
         let (tx, rx) = oneshot::channel();
-        self.try_post(message, tx)?;
+        self.try_post(message, tx);
         match rx.await {
             // Channel was closed; the message was not delivered.
-            Ok(m) => Err(SendError(ChannelError::Closed, m)),
+            Ok(err) => Err(err),
 
             // Channel was dropped; the message was successfully enqueued
             // on the remote end of the channel.
@@ -181,14 +176,12 @@ impl<M: RemoteMessage> MpscTx<M> {
 
 #[async_trait]
 impl<M: RemoteMessage> Tx<M> for MpscTx<M> {
-    fn try_post(
-        &self,
-        message: M,
-        _return_channel: oneshot::Sender<M>,
-    ) -> Result<(), SendError<M>> {
-        self.tx
-            .send(message)
-            .map_err(|mpsc::error::SendError(message)| SendError(ChannelError::Closed, message))
+    fn try_post(&self, message: M, return_channel: oneshot::Sender<SendError<M>>) {
+        if let Err(mpsc::error::SendError(message)) = self.tx.send(message) {
+            if let Err(m) = return_channel.send(SendError(ChannelError::Closed, message)) {
+                tracing::warn!("failed to deliver SendError: {}", m);
+            }
+        }
     }
 
     fn addr(&self) -> ChannelAddr {
@@ -751,7 +744,7 @@ enum ChannelTxKind<M: RemoteMessage> {
 
 #[async_trait]
 impl<M: RemoteMessage> Tx<M> for ChannelTx<M> {
-    fn try_post(&self, message: M, return_channel: oneshot::Sender<M>) -> Result<(), SendError<M>> {
+    fn try_post(&self, message: M, return_channel: oneshot::Sender<SendError<M>>) {
         match &self.inner {
             ChannelTxKind::Local(tx) => tx.try_post(message, return_channel),
             ChannelTxKind::Tcp(tx) => tx.try_post(message, return_channel),
@@ -840,10 +833,11 @@ pub fn dial<M: RemoteMessage>(addr: ChannelAddr) -> Result<ChannelTx<M>, Channel
 /// Serve on the provided channel address. The server is turned down
 /// when the returned Rx is dropped.
 #[crate::instrument]
+#[track_caller]
 pub fn serve<M: RemoteMessage>(
     addr: ChannelAddr,
 ) -> Result<(ChannelAddr, ChannelRx<M>), ChannelError> {
-    tracing::debug!(name = "serve", "serving channel address {}", addr);
+    let caller = Location::caller();
     match addr {
         ChannelAddr::Tcp(addr) => {
             let (addr, rx) = net::tcp::serve::<M>(addr)?;
@@ -870,7 +864,14 @@ pub fn serve<M: RemoteMessage>(
             a
         ))),
     }
-    .map(|(addr, inner)| (addr, ChannelRx { inner }))
+    .map(|(addr, inner)| {
+        tracing::debug!(
+            name = "serve",
+            %addr,
+            %caller,
+        );
+        (addr, ChannelRx { inner })
+    })
 }
 
 /// Serve on the local address. The server is turned down
@@ -1051,7 +1052,7 @@ mod tests {
                 let addr = listen_addr.clone();
                 sends.spawn(async move {
                     let tx = dial::<u64>(addr).unwrap();
-                    tx.try_post(message, oneshot::channel().0).unwrap();
+                    tx.post(message);
                 });
             }
 
@@ -1086,7 +1087,7 @@ mod tests {
             let (listen_addr, rx) = crate::channel::serve::<u64>(addr).unwrap();
 
             let tx = dial::<u64>(listen_addr).unwrap();
-            tx.try_post(123, oneshot::channel().0).unwrap();
+            tx.post(123);
             drop(rx);
 
             // New transmits should fail... but there is buffering, etc.,
@@ -1096,12 +1097,15 @@ mod tests {
             let start = RealClock.now();
 
             let result = loop {
-                let result = tx.try_post(123, oneshot::channel().0);
-                if result.is_err() || start.elapsed() > Duration::from_secs(10) {
+                let (return_tx, return_rx) = oneshot::channel();
+                tx.try_post(123, return_tx);
+                let result = return_rx.await;
+
+                if result.is_ok() || start.elapsed() > Duration::from_secs(10) {
                     break result;
                 }
             };
-            assert_matches!(result, Err(SendError(ChannelError::Closed, 123)));
+            assert_matches!(result, Ok(SendError(ChannelError::Closed, 123)));
         }
     }
 
@@ -1134,7 +1138,7 @@ mod tests {
         for addr in addrs() {
             let (listen_addr, mut rx) = crate::channel::serve::<i32>(addr).unwrap();
             let tx = crate::channel::dial(listen_addr).unwrap();
-            tx.try_post(123, oneshot::channel().0).unwrap();
+            tx.post(123);
             assert_eq!(rx.recv().await.unwrap(), 123);
         }
     }

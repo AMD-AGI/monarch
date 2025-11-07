@@ -6,20 +6,59 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+/// Pytokio allows Python coroutines to await Rust futures, in specific contexts.
+///
+/// A PythonTask is constructed in Python from `PythonTask.from_coroutine()`:
+///
+/// ```ignore
+/// async def task():
+///     # ... async work, await other python tasks
+/// task = PythonTask.from_coroutine(coro=task())
+/// ```
+///
+/// The task may only await *other* PythonTasks; it is an error to await arbitrary
+/// Python awaitables. In this way, Pytokio is a way to use Python to compose Tokio futures.
+///
+/// A task can be spawned in order to produce an awaitable that can be awaited in
+/// any async context:
+///
+/// ```ignore
+/// shared = task.spawn()
+/// result = await shared
+/// ```
+///
+/// Spawn spawns a tokio task that drives the coroutine to completion, and, using the Python
+/// awaitable protocol, allows those coroutines to await other Tokio futures in turn.
+///
+/// PythonTasks can also be awaited synchronously by `block_on`:
+///
+/// ```ignore
+/// result = task.block_on()
+/// ```
+///
+/// This allows PythonTasks to be used in either async or sync contexts -- the underlying
+/// code executes in exactly the same way, driven by an underlying tokio task.
 use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 
+use hyperactor::attrs::declare_attrs;
 use hyperactor::clock::Clock;
 use hyperactor::clock::RealClock;
+use hyperactor::config;
+use hyperactor::config::CONFIG;
+use hyperactor::config::ConfigAttr;
 use monarch_types::SerializablePyErr;
 use pyo3::IntoPyObjectExt;
+#[cfg(test)]
+use pyo3::PyClass;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyStopIteration;
 use pyo3::exceptions::PyTimeoutError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyNone;
+use pyo3::types::PyString;
 use pyo3::types::PyType;
 use tokio::sync::Mutex;
 use tokio::sync::watch;
@@ -28,18 +67,66 @@ use tokio::task::JoinHandle;
 use crate::runtime::get_tokio_runtime;
 use crate::runtime::signal_safe_block_on;
 
+declare_attrs! {
+    /// If true, when a pytokio PythonTask fails, the traceback of the original callsite
+    /// will be logged.
+    @meta(CONFIG = ConfigAttr {
+        env_name: Some("MONARCH_HYPERACTOR_ENABLE_UNAWAITED_PYTHON_TASK_TRACEBACK".to_string()),
+        py_name: Some("enable_unawaited_python_task_traceback".to_string()),
+    })
+    pub attr ENABLE_UNAWAITED_PYTHON_TASK_TRACEBACK: bool = false;
+}
+
+fn current_traceback() -> PyResult<Option<PyObject>> {
+    if config::global::get(ENABLE_UNAWAITED_PYTHON_TASK_TRACEBACK) {
+        Python::with_gil(|py| {
+            Ok(Some(
+                py.import("traceback")?
+                    .call_method0("extract_stack")?
+                    .unbind(),
+            ))
+        })
+    } else {
+        Ok(None)
+    }
+}
+
+fn format_traceback(py: Python<'_>, traceback: &PyObject) -> PyResult<String> {
+    let tb = py
+        .import("traceback")?
+        .call_method1("format_list", (traceback,))?;
+    PyString::new(py, "")
+        .call_method1("join", (tb,))?
+        .extract::<String>()
+}
+
 /// Helper struct to make a Python future passable in an actor message.
 ///
 /// Also so that we don't have to write this massive type signature everywhere
 pub(crate) struct PythonTask {
     future: Mutex<Pin<Box<dyn Future<Output = PyResult<PyObject>> + Send + 'static>>>,
+    traceback: Option<PyObject>,
 }
 
 impl PythonTask {
-    pub(crate) fn new(fut: impl Future<Output = PyResult<PyObject>> + Send + 'static) -> Self {
+    fn new_with_traceback(
+        fut: impl Future<Output = PyResult<PyObject>> + Send + 'static,
+        traceback: Option<PyObject>,
+    ) -> Self {
         Self {
             future: Mutex::new(Box::pin(fut)),
+            traceback,
         }
+    }
+
+    pub(crate) fn new(
+        fut: impl Future<Output = PyResult<PyObject>> + Send + 'static,
+    ) -> PyResult<Self> {
+        Ok(Self::new_with_traceback(fut, current_traceback()?))
+    }
+
+    fn traceback(&self) -> &Option<PyObject> {
+        &self.traceback
     }
 
     pub(crate) fn take(self) -> Pin<Box<dyn Future<Output = PyResult<PyObject>> + Send + 'static>> {
@@ -101,16 +188,27 @@ impl PythonTaskAwaitIterator {
 }
 
 impl PyPythonTask {
+    fn new_with_traceback<F, T>(fut: F, traceback: Option<PyObject>) -> PyResult<Self>
+    where
+        F: Future<Output = PyResult<T>> + Send + 'static,
+        T: for<'py> IntoPyObject<'py>,
+    {
+        Ok(PythonTask::new_with_traceback(
+            async {
+                fut.await
+                    .and_then(|t| Python::with_gil(|py| t.into_py_any(py)))
+            },
+            traceback,
+        )
+        .into())
+    }
+
     pub fn new<F, T>(fut: F) -> PyResult<Self>
     where
         F: Future<Output = PyResult<T>> + Send + 'static,
         T: for<'py> IntoPyObject<'py>,
     {
-        Ok(PythonTask::new(async {
-            fut.await
-                .and_then(|t| Python::with_gil(|py| t.into_py_any(py)))
-        })
-        .into())
+        Self::new_with_traceback(fut, current_traceback()?)
     }
 }
 
@@ -131,6 +229,16 @@ impl PyPythonTask {
             .ok_or_else(|| PyValueError::new_err("PythonTask already consumed"))
     }
 
+    fn traceback(&self) -> PyResult<Option<PyObject>> {
+        if let Some(task) = &self.inner {
+            Ok(Python::with_gil(|py| {
+                task.traceback().as_ref().map(|t| t.clone_ref(py))
+            }))
+        } else {
+            Err(PyValueError::new_err("PythonTask already consumed"))
+        }
+    }
+
     /// Prefer spawn_abortable over spawn if the future can be safely cancelled
     /// when it is dropped.
     /// This way any resources it is using will be freed up. This is especially
@@ -141,14 +249,17 @@ impl PyPythonTask {
     /// PyShared is dropped.
     pub(crate) fn spawn_abortable(&mut self) -> PyResult<PyShared> {
         let (tx, rx) = watch::channel(None);
+        let traceback = self.traceback()?;
+        let traceback1 = self.traceback()?;
         let task = self.take_task()?;
         let handle = get_tokio_runtime().spawn(async move {
-            send_result(tx, task.await);
+            send_result(tx, task.await, traceback1);
         });
         Ok(PyShared {
             rx,
             handle,
             abort: true,
+            traceback,
         })
     }
 }
@@ -156,15 +267,23 @@ impl PyPythonTask {
 fn send_result(
     tx: tokio::sync::watch::Sender<Option<PyResult<PyObject>>>,
     result: PyResult<PyObject>,
+    traceback: Option<PyObject>,
 ) {
     // a SendErr just means that there are no consumers of the value left.
     match tx.send(Some(result)) {
         Err(tokio::sync::watch::error::SendError(Some(Err(pyerr)))) => {
             Python::with_gil(|py| {
-                panic!(
-                    "PythonTask errored but is not being awaited: {}",
-                    SerializablePyErr::from(py, &pyerr)
-                )
+                let tb = if let Some(tb) = traceback {
+                    format_traceback(py, &tb).unwrap()
+                } else {
+                    "None (run with `MONARCH_HYPERACTOR_ENABLE_UNAWAITED_PYTHON_TASK_TRACEBACK=1` to see a traceback here)\n".into()
+                };
+                tracing::error!(
+                    "PythonTask errored but is not being awaited; this will not crash your program, but indicates that \
+                    something went wrong.\n{}\nTraceback where the task was created (most recent call last):\n{}",
+                    SerializablePyErr::from(py, &pyerr),
+                    tb
+                );
             });
         }
         _ => {}
@@ -175,6 +294,7 @@ fn send_result(
 impl PyPythonTask {
     fn block_on(mut slf: PyRefMut<PyPythonTask>, py: Python<'_>) -> PyResult<PyObject> {
         let task = slf.take_task()?;
+
         // mutable references to python objects must be dropped before calling
         // signal_safe_block_on. It will release the GIL, and any other thread
         // trying to access slf will throw.
@@ -184,14 +304,17 @@ impl PyPythonTask {
 
     pub(crate) fn spawn(&mut self) -> PyResult<PyShared> {
         let (tx, rx) = watch::channel(None);
+        let traceback = self.traceback()?;
+        let traceback1 = self.traceback()?;
         let task = self.take_task()?;
         let handle = get_tokio_runtime().spawn(async move {
-            send_result(tx, task.await);
+            send_result(tx, task.await, traceback1);
         });
         Ok(PyShared {
             rx,
             handle,
             abort: false,
+            traceback,
         })
     }
 
@@ -278,26 +401,35 @@ impl PyPythonTask {
     }
 
     fn with_timeout(&mut self, seconds: f64) -> PyResult<PyPythonTask> {
+        let tb = self.traceback()?;
         let task = self.take_task()?;
-        PyPythonTask::new(async move {
-            RealClock
-                .timeout(std::time::Duration::from_secs_f64(seconds), task)
-                .await
-                .map_err(|_| PyTimeoutError::new_err(()))?
-        })
+        PyPythonTask::new_with_traceback(
+            async move {
+                RealClock
+                    .timeout(std::time::Duration::from_secs_f64(seconds), task)
+                    .await
+                    .map_err(|_| PyTimeoutError::new_err(()))?
+            },
+            tb,
+        )
     }
 
     #[staticmethod]
     fn spawn_blocking(f: PyObject) -> PyResult<PyShared> {
         let (tx, rx) = watch::channel(None);
+        let traceback = current_traceback()?;
+        let traceback1 = traceback
+            .as_ref()
+            .map_or_else(|| None, |t| Python::with_gil(|py| Some(t.clone_ref(py))));
         let handle = get_tokio_runtime().spawn_blocking(move || {
             let result = Python::with_gil(|py| f.call0(py));
-            send_result(tx, result);
+            send_result(tx, result, traceback1);
         });
         Ok(PyShared {
             rx,
             handle,
             abort: false,
+            traceback,
         })
     }
 
@@ -342,6 +474,7 @@ pub struct PyShared {
     rx: watch::Receiver<Option<PyResult<PyObject>>>,
     handle: JoinHandle<()>,
     abort: bool,
+    traceback: Option<PyObject>,
 }
 
 impl Drop for PyShared {
@@ -363,20 +496,27 @@ impl PyShared {
         // we can have multiple awaiters get triggered by the same change.
         // self.rx will always be in the state where it hasn't see the change yet.
         let mut rx = self.rx.clone();
-        PyPythonTask::new(async move {
-            rx.changed().await.map_err(to_py_error)?;
-            let b = rx.borrow();
-            let r = b.as_ref().unwrap();
-            Python::with_gil(|py| match r {
-                Ok(v) => Ok(v.bind(py).clone().unbind()),
-                Err(err) => Err(err.clone_ref(py)),
-            })
-        })
+        PyPythonTask::new_with_traceback(
+            async move {
+                rx.changed().await.map_err(to_py_error)?;
+                let b = rx.borrow();
+                let r = b.as_ref().unwrap();
+                Python::with_gil(|py| match r {
+                    Ok(v) => Ok(v.bind(py).clone().unbind()),
+                    Err(err) => Err(err.clone_ref(py)),
+                })
+            },
+            self.traceback
+                .as_ref()
+                .map_or_else(|| None, |t| Python::with_gil(|py| Some(t.clone_ref(py)))),
+        )
     }
+
     fn __await__(&mut self, py: Python<'_>) -> PyResult<PythonTaskAwaitIterator> {
         let task = self.task()?;
         Ok(PythonTaskAwaitIterator::new(task.into_py_any(py)?))
     }
+
     pub fn block_on(mut slf: PyRefMut<PyShared>, py: Python<'_>) -> PyResult<PyObject> {
         let task = slf.task()?.take_task()?;
         // mutable references to python objects must be dropped before calling
@@ -408,4 +548,73 @@ pub fn register_python_bindings(hyperactor_mod: &Bound<'_, PyModule>) -> PyResul
     hyperactor_mod.add_function(f)?;
 
     Ok(())
+}
+
+/// Ensure the embedded Python interpreter is initialized exactly
+/// once.
+///
+/// Safe to call from multiple threads, multiple times.
+#[cfg(test)]
+pub(crate) fn ensure_python() {
+    static INIT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    INIT.get_or_init(|| {
+        pyo3::prepare_freethreaded_python();
+    });
+}
+
+#[cfg(test)]
+// Helper: let us "await" a `PyPythonTask` in Rust.
+//
+// Semantics:
+//   - consume the `PyPythonTask`,
+//   - take the inner future,
+//   - `.await` it on tokio to get `Py<PyAny>`,
+//   - turn that into `Py<T>`.
+pub(crate) trait AwaitPyExt {
+    async fn await_py<T: PyClass>(self) -> Result<Py<T>, PyErr>;
+
+    // For tasks whose future just resolves to (), i.e. no object,
+    // just "did it work?"
+    async fn await_unit(self) -> Result<(), PyErr>;
+}
+
+#[cfg(test)]
+impl AwaitPyExt for PyPythonTask {
+    async fn await_py<T: PyClass>(mut self) -> Result<Py<T>, PyErr> {
+        // Take ownership of the inner future.
+        let fut = self
+            .take_task()
+            .expect("PyPythonTask already consumed in await_py");
+
+        // Await a Result<Py<PyAny>, PyErr>.
+        let py_any: Py<PyAny> = fut.await?;
+
+        // Convert Py<PyAny> -> Py<T>.
+        Python::with_gil(|py| {
+            let bound_any = py_any.bind(py);
+
+            // Try extract a Py<T>.
+            let obj: Py<T> = bound_any
+                .extract::<Py<T>>()
+                .expect("spawn() did not return expected Python type");
+
+            Ok(obj)
+        })
+    }
+
+    async fn await_unit(mut self) -> Result<(), PyErr> {
+        let fut = self
+            .take_task()
+            .expect("PyPythonTask already consumed in await_unit");
+
+        // Await it. This still gives us a Py<PyAny> because
+        // Python-side return values are always materialized as 'some
+        // object'. For "no value" / None, that's just a PyAny(None).
+        let py_any: Py<PyAny> = fut.await?;
+
+        // We don't need to extract anything. Just drop it.
+        drop(py_any);
+
+        Ok(())
+    }
 }

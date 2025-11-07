@@ -45,6 +45,7 @@ impl System {
     /// Spawns a system actor and serves it at the provided channel
     /// address. This becomes a well-known address with which procs
     /// can bootstrap.
+    #[tracing::instrument]
     pub async fn serve(
         addr: ChannelAddr,
         supervision_update_timeout: tokio::time::Duration,

@@ -40,11 +40,6 @@ setup_rust_toolchain() {
     cargo install cargo-nextest --locked
 }
 
-install_build_dependencies() {
-    echo "Installing build dependencies..."
-    pip install -r build-requirements.txt ${1:-}
-}
-
 # Install Python test dependencies
 install_python_test_dependencies() {
     echo "Installing test dependencies..."
@@ -115,7 +110,6 @@ setup_build_environment() {
     setup_conda_environment "${python_version}"
     install_system_dependencies
     setup_rust_toolchain
-    install_build_dependencies "${install_args}"
 }
 
 # Detect and configure CUDA environment for linking
@@ -167,6 +161,7 @@ setup_test_environment() {
 # between runs.
 run_test_groups() {
   set +e
+  local test_results_dir="${RUNNER_TEST_RESULTS_DIR:-test-results}"
   local enable_actor_error_test="${2:-0}"
   # Validate argument enable_actor_error_test
   if [[ "$enable_actor_error_test" != "0" && "$enable_actor_error_test" != "1" ]]; then
@@ -186,6 +181,7 @@ run_test_groups() {
             --ignore-glob="**/meta/**" \
             --dist=no \
             --group="$GROUP" \
+            --junit-xml="$test_results_dir/test-results-$GROUP.xml" \
             --splits=10
     else
         LC_ALL=C pytest python/tests/ -s -v -m "not oss_skip" \
@@ -193,6 +189,7 @@ run_test_groups() {
             --dist=no \
             --ignore=python/tests/test_actor_error.py \
             --group="$GROUP" \
+            --junit-xml="$test_results_dir/test-results-$GROUP.xml" \
             --splits=10
     fi
     # Check result and record failures

@@ -34,7 +34,6 @@ use hyperactor::actor::Referable;
 use hyperactor::actor::remote::Remote;
 use hyperactor::channel;
 use hyperactor::channel::ChannelAddr;
-use hyperactor::channel::TcpMode;
 use hyperactor::clock::Clock;
 use hyperactor::clock::ClockKind;
 use hyperactor::context;
@@ -877,6 +876,7 @@ mod tests {
     use hyperactor::channel;
     use hyperactor::channel::ChannelAddr;
     use hyperactor::channel::ChannelTransport;
+    use hyperactor::channel::TcpMode;
     use hyperactor::clock::Clock;
     use hyperactor::clock::RealClock;
     use hyperactor::forward;

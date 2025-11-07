@@ -984,7 +984,7 @@ mod tests {
                     .await
                     .unwrap();
 
-                let instance = crate::v1::testing::instance().await;
+                let instance = $crate::v1::testing::instance().await;
                 let proc_mesh = ProcMesh::allocate(alloc).await.unwrap();
                 let (undeliverable_tx, _undeliverable_rx) = proc_mesh.client().open_port();
                 let params = PingPongActorParams::new(Some(undeliverable_tx.bind()), None);
@@ -1030,7 +1030,7 @@ mod tests {
                     .await
                     .unwrap();
 
-                let instance = crate::v1::testing::instance().await;
+                let instance = $crate::v1::testing::instance().await;
                 let proc_mesh = ProcMesh::allocate(alloc).await.unwrap();
                 let actor_mesh: RootActorMesh<TestActor> = proc_mesh.spawn(&instance, "echo", &()).await.unwrap();
                 let dont_simulate_error = true;
@@ -1074,7 +1074,7 @@ mod tests {
                     .await
                     .unwrap();
 
-                let instance = crate::v1::testing::instance().await;
+                let instance = $crate::v1::testing::instance().await;
                 let proc_mesh = ProcMesh::allocate(alloc).await.unwrap();
                 let actor_mesh: RootActorMesh<TestActor> = proc_mesh.spawn(&instance, "echo", &()).await.unwrap();
 
@@ -1096,7 +1096,7 @@ mod tests {
             #[tokio::test]
             async fn test_inter_proc_mesh_comms() {
                 let mut meshes = Vec::new();
-                let instance = crate::v1::testing::instance().await;
+                let instance = $crate::v1::testing::instance().await;
                 for _ in 0..2 {
                     let alloc = $allocator
                         .allocate(AllocSpec {
@@ -1157,7 +1157,7 @@ mod tests {
                     .await
                     .unwrap();
 
-                let instance = crate::v1::testing::instance().await;
+                let instance = $crate::v1::testing::instance().await;
                 let mut proc_mesh = ProcMesh::allocate(alloc).await.unwrap();
 
                 let (tx, mut rx) = hyperactor::mailbox::open_port(proc_mesh.client());
@@ -1220,7 +1220,7 @@ mod tests {
                     .await
                     .unwrap();
 
-                let instance = crate::v1::testing::instance().await;
+                let instance = $crate::v1::testing::instance().await;
                 let mesh = ProcMesh::allocate(alloc).await.unwrap();
                 let (reply_port_handle, mut reply_port_receiver) = mesh.client().open_port::<usize>();
                 let reply_port = reply_port_handle.bind();
@@ -1508,6 +1508,7 @@ mod tests {
                 let serialized = Serialized::serialize(pay).unwrap();
                 let mut headers = Attrs::new();
                 hyperactor::mailbox::headers::set_send_timestamp(&mut headers);
+                hyperactor::mailbox::headers::set_rust_message_type::<Payload>(&mut headers);
                 let envelope = MessageEnvelope::new(src.clone(), dst.clone(), serialized, headers);
                 let frame = Frame::Message(0u64, envelope);
                 let message = serde_multipart::serialize_illegal_bincode(&frame).unwrap();
@@ -1547,7 +1548,7 @@ mod tests {
 
             // Message sized to exactly max frame length.
             let payload = Payload {
-                part: Part::from(Bytes::from(vec![0u8; 698])),
+                part: Part::from(Bytes::from(vec![0u8; 588])),
                 reply_port: reply_handle.bind(),
             };
             let frame_len = frame_length(
@@ -1567,7 +1568,7 @@ mod tests {
 
             // Message sized to max frame length + 1.
             let payload = Payload {
-                part: Part::from(Bytes::from(vec![0u8; 699])),
+                part: Part::from(Bytes::from(vec![0u8; 589])),
                 reply_port: reply_handle.bind(),
             };
             let frame_len = frame_length(
