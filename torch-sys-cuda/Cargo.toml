@@ -9,6 +9,7 @@ license = "BSD-3-Clause"
 links = "torch_cuda"
 
 [dependencies]
+cuda-sys = { path = "../cuda-sys" }
 cxx = "1.0.119"
 derive_more = { version = "1.0.0", features = ["full"] }
 fxhash = "0.2.1"

@@ -42,29 +42,29 @@ pub fn is_cuda_available() -> bool {
     CUDA_AVAILABLE.load(Ordering::SeqCst)
 }
 
-/// Internal function that performs the actual CUDA availability check
+/// Internal function that performs the actual CUDA/HIP availability check
 fn check_cuda_available() -> bool {
     unsafe {
-        // Try to initialize CUDA
-        let result = cuda_sys::cuInit(0);
+        // Try to initialize HIP (HIP auto-initializes, but we call for consistency)
+        let result = cuda_sys::hipInit(0);
 
-        if result != cuda_sys::CUresult::CUDA_SUCCESS {
+        if result != cuda_sys::hipError_t::hipSuccess {
             return false;
         }
 
-        // Check if there are any CUDA devices
+        // Check if there are any HIP devices
         let mut device_count: i32 = 0;
-        let count_result = cuda_sys::cuDeviceGetCount(&mut device_count);
+        let count_result = cuda_sys::hipGetDeviceCount(&mut device_count);
 
-        if count_result != cuda_sys::CUresult::CUDA_SUCCESS || device_count <= 0 {
+        if count_result != cuda_sys::hipError_t::hipSuccess || device_count <= 0 {
             return false;
         }
 
         // Try to get the first device to verify it's actually accessible
-        let mut device: cuda_sys::CUdevice = std::mem::zeroed();
-        let device_result = cuda_sys::cuDeviceGet(&mut device, 0);
+        let mut device: i32 = 0;
+        let device_result = cuda_sys::hipDeviceGet(&mut device, 0);
 
-        if device_result != cuda_sys::CUresult::CUDA_SUCCESS {
+        if device_result != cuda_sys::hipError_t::hipSuccess {
             return false;
         }
 
@@ -270,8 +270,8 @@ pub mod test_utils {
         pub actor_2: ActorRef<RdmaManagerActor>,
         pub rdma_handle_1: RdmaBuffer,
         pub rdma_handle_2: RdmaBuffer,
-        cuda_context_1: Option<cuda_sys::CUcontext>,
-        cuda_context_2: Option<cuda_sys::CUcontext>,
+        cuda_context_1: Option<cuda_sys::hipCtx_t>,
+        cuda_context_2: Option<cuda_sys::hipCtx_t>,
     }
 
     #[derive(Debug, Clone)]
@@ -371,48 +371,48 @@ pub mod test_utils {
                     cuda_contexts.push(None);
                     continue;
                 }
-                // CUDA case
+                // HIP/ROCm case
                 unsafe {
-                    cu_check!(cuda_sys::cuInit(0));
+                    cu_check!(cuda_sys::hipInit(0));
 
-                    let mut dptr: cuda_sys::CUdeviceptr = std::mem::zeroed();
-                    let mut handle: cuda_sys::CUmemGenericAllocationHandle = std::mem::zeroed();
+                    let mut dptr: cuda_sys::hipDeviceptr_t = std::mem::zeroed();
+                    let mut handle: cuda_sys::hipMemGenericAllocationHandle_t = std::mem::zeroed();
 
-                    let mut device: cuda_sys::CUdevice = std::mem::zeroed();
-                    cu_check!(cuda_sys::cuDeviceGet(&mut device, accel.1 as i32));
+                    let mut device: i32 = accel.1 as i32;
+                    cu_check!(cuda_sys::hipDeviceGet(&mut device, accel.1 as i32));
 
-                    let mut context: cuda_sys::CUcontext = std::mem::zeroed();
-                    cu_check!(cuda_sys::cuCtxCreate_v2(&mut context, 0, accel.1 as i32));
-                    cu_check!(cuda_sys::cuCtxSetCurrent(context));
+                    let mut context: cuda_sys::hipCtx_t = std::mem::zeroed();
+                    cu_check!(cuda_sys::hipCtxCreate(&mut context, 0, device));
+                    cu_check!(cuda_sys::hipCtxSetCurrent(context));
 
                     let mut granularity: usize = 0;
-                    let mut prop: cuda_sys::CUmemAllocationProp = std::mem::zeroed();
-                    prop.type_ = cuda_sys::CUmemAllocationType::CU_MEM_ALLOCATION_TYPE_PINNED;
-                    prop.location.type_ = cuda_sys::CUmemLocationType::CU_MEM_LOCATION_TYPE_DEVICE;
+                    let mut prop: cuda_sys::hipMemAllocationProp = std::mem::zeroed();
+                    prop.type_ = cuda_sys::hipMemAllocationType::hipMemAllocationTypePinned;
+                    prop.location.type_ = cuda_sys::hipMemLocationType::hipMemLocationTypeDevice;
                     prop.location.id = device;
                     prop.allocFlags.gpuDirectRDMACapable = 1;
                     prop.requestedHandleTypes =
-                        cuda_sys::CUmemAllocationHandleType::CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR;
+                        cuda_sys::hipMemAllocationHandleType::hipMemHandleTypePosixFileDescriptor;
 
-                    cu_check!(cuda_sys::cuMemGetAllocationGranularity(
+                    cu_check!(cuda_sys::hipMemGetAllocationGranularity(
                         &mut granularity as *mut usize,
                         &prop,
-                        cuda_sys::CUmemAllocationGranularity_flags::CU_MEM_ALLOC_GRANULARITY_MINIMUM,
+                        cuda_sys::hipMemAllocationGranularity_flags::hipMemAllocationGranularityMinimum,
                     ));
 
                     // ensure our size is aligned
                     let /*mut*/ padded_size: usize = ((buffer_size - 1) / granularity + 1) * granularity;
                     assert!(padded_size == buffer_size);
 
-                    cu_check!(cuda_sys::cuMemCreate(
-                        &mut handle as *mut cuda_sys::CUmemGenericAllocationHandle,
+                    cu_check!(cuda_sys::hipMemCreate(
+                        &mut handle as *mut cuda_sys::hipMemGenericAllocationHandle_t,
                         padded_size,
                         &prop,
                         0
                     ));
                     // reserve and map the memory
-                    cu_check!(cuda_sys::cuMemAddressReserve(
-                        &mut dptr as *mut cuda_sys::CUdeviceptr,
+                    cu_check!(cuda_sys::hipMemAddressReserve(
+                        &mut dptr as *mut cuda_sys::hipDeviceptr_t,
                         padded_size,
                         0,
                         0,
@@ -422,25 +422,25 @@ pub mod test_utils {
                     assert!(padded_size.is_multiple_of(granularity));
 
                     // fails if a add cu_check macro; but passes if we don't
-                    let err = cuda_sys::cuMemMap(
-                        dptr as cuda_sys::CUdeviceptr,
+                    let err = cuda_sys::hipMemMap(
+                        dptr as cuda_sys::hipDeviceptr_t,
                         padded_size,
                         0,
-                        handle as cuda_sys::CUmemGenericAllocationHandle,
+                        handle as cuda_sys::hipMemGenericAllocationHandle_t,
                         0,
                     );
-                    if err != cuda_sys::CUresult::CUDA_SUCCESS {
+                    if err != cuda_sys::hipError_t::hipSuccess {
                         panic!("failed reserving and mapping memory {:?}", err);
                     }
 
                     // set access
-                    let mut access_desc: cuda_sys::CUmemAccessDesc = std::mem::zeroed();
+                    let mut access_desc: cuda_sys::hipMemAccessDesc = std::mem::zeroed();
                     access_desc.location.type_ =
-                        cuda_sys::CUmemLocationType::CU_MEM_LOCATION_TYPE_DEVICE;
+                        cuda_sys::hipMemLocationType::hipMemLocationTypeDevice;
                     access_desc.location.id = device;
                     access_desc.flags =
-                        cuda_sys::CUmemAccess_flags::CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
-                    cu_check!(cuda_sys::cuMemSetAccess(dptr, padded_size, &access_desc, 1));
+                        cuda_sys::hipMemAccessFlags::hipMemAccessFlagsProtReadWrite;
+                    cu_check!(cuda_sys::hipMemSetAccess(dptr, padded_size, &access_desc, 1));
                     buf_vec.push(Buffer {
                         ptr: dptr,
                         len: padded_size,
@@ -457,12 +457,12 @@ pub mod test_utils {
                     *val = (i % 256) as u8;
                 }
                 unsafe {
-                    // Use the CUDA context that was created for the first buffer
-                    cu_check!(cuda_sys::cuCtxSetCurrent(
-                        cuda_contexts[0].expect("No CUDA context found")
+                    // Use the HIP context that was created for the first buffer
+                    cu_check!(cuda_sys::hipCtxSetCurrent(
+                        cuda_contexts[0].expect("No HIP context found")
                     ));
 
-                    cu_check!(cuda_sys::cuMemcpyHtoD_v2(
+                    cu_check!(cuda_sys::hipMemcpyHtoD(
                         buf_vec[0].ptr,
                         temp_buffer.as_ptr() as *const std::ffi::c_void,
                         temp_buffer.len()
@@ -512,30 +512,30 @@ pub mod test_utils {
                 .await?;
             if self.cuda_context_1.is_some() {
                 unsafe {
-                    cu_check!(cuda_sys::cuCtxSetCurrent(
-                        self.cuda_context_1.expect("No CUDA context found")
+                    cu_check!(cuda_sys::hipCtxSetCurrent(
+                        self.cuda_context_1.expect("No HIP context found")
                     ));
-                    cu_check!(cuda_sys::cuMemUnmap(
-                        self.buffer_1.ptr as cuda_sys::CUdeviceptr,
+                    cu_check!(cuda_sys::hipMemUnmap(
+                        self.buffer_1.ptr as cuda_sys::hipDeviceptr_t,
                         self.buffer_1.len
                     ));
-                    cu_check!(cuda_sys::cuMemAddressFree(
-                        self.buffer_1.ptr as cuda_sys::CUdeviceptr,
+                    cu_check!(cuda_sys::hipMemAddressFree(
+                        self.buffer_1.ptr as cuda_sys::hipDeviceptr_t,
                         self.buffer_1.len
                     ));
                 }
             }
             if self.cuda_context_2.is_some() {
                 unsafe {
-                    cu_check!(cuda_sys::cuCtxSetCurrent(
-                        self.cuda_context_2.expect("No CUDA context found")
+                    cu_check!(cuda_sys::hipCtxSetCurrent(
+                        self.cuda_context_2.expect("No HIP context found")
                     ));
-                    cu_check!(cuda_sys::cuMemUnmap(
-                        self.buffer_2.ptr as cuda_sys::CUdeviceptr,
+                    cu_check!(cuda_sys::hipMemUnmap(
+                        self.buffer_2.ptr as cuda_sys::hipDeviceptr_t,
                         self.buffer_2.len
                     ));
-                    cu_check!(cuda_sys::cuMemAddressFree(
-                        self.buffer_2.ptr as cuda_sys::CUdeviceptr,
+                    cu_check!(cuda_sys::hipMemAddressFree(
+                        self.buffer_2.ptr as cuda_sys::hipDeviceptr_t,
                         self.buffer_2.len
                     ));
                 }
@@ -577,12 +577,12 @@ pub mod test_utils {
                     let mut temp_buffer = vec![0u8; size].into_boxed_slice();
                     // SAFETY: The buffer is allocated with the correct size and the pointer is valid.
                     unsafe {
-                        cu_check!(cuda_sys::cuCtxSetCurrent(
-                            cuda_context.expect("No CUDA context found")
+                        cu_check!(cuda_sys::hipCtxSetCurrent(
+                            cuda_context.expect("No HIP context found")
                         ));
-                        cu_check!(cuda_sys::cuMemcpyDtoH_v2(
+                        cu_check!(cuda_sys::hipMemcpyDtoH(
                             temp_buffer.as_mut_ptr() as *mut std::ffi::c_void,
-                            virtual_addr as cuda_sys::CUdeviceptr,
+                            virtual_addr as cuda_sys::hipDeviceptr_t,
                             size
                         ));
                     }

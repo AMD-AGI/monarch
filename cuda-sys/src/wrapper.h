@@ -8,5 +8,14 @@
 
 #pragma once
 
+// Support both CUDA and HIP (ROCm)
+#if defined(__HIP_PLATFORM_AMD__) || defined(__HIP_PLATFORM_HCC__)
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+// HIP provides CUDA-compatible types and functions
+// Map CUDA stream type to HIP equivalent
+typedef struct ihipStream_t CUstream_st;
+#else
 #include <cuda.h>
 #include <cuda_runtime.h>
+#endif

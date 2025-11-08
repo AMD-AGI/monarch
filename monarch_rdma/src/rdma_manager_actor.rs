@@ -365,14 +365,10 @@ impl RdmaManagerActor {
         size: usize,
     ) -> Result<(RdmaMemoryRegionView, String), anyhow::Error> {
         unsafe {
-            let mut mem_type: i32 = 0;
-            let ptr = addr as cuda_sys::CUdeviceptr;
-            let err = cuda_sys::cuPointerGetAttribute(
-                &mut mem_type as *mut _ as *mut std::ffi::c_void,
-                cuda_sys::CUpointer_attribute_enum::CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
-                ptr,
-            );
-            let is_cuda = err == cuda_sys::CUresult::CUDA_SUCCESS;
+            // Check if this is GPU memory using hipPointerGetAttributes
+            let mut attrs: cuda_sys::hipPointerAttribute_t = std::mem::zeroed();
+            let err = cuda_sys::hipPointerGetAttributes(&mut attrs, addr as *const std::ffi::c_void);
+            let is_cuda = err == cuda_sys::hipError_t::hipSuccess && attrs.type_ == cuda_sys::hipMemoryType::hipMemoryTypeDevice;
 
             let mut selected_rdma_device = None;
 
@@ -456,27 +452,13 @@ impl RdmaManagerActor {
                 }
                 mrv = maybe_mrv.unwrap();
             } else if is_cuda {
-                let mut fd: i32 = -1;
-                cuda_sys::cuMemGetHandleForAddressRange(
-                    &mut fd as *mut i32 as *mut std::ffi::c_void,
-                    addr as cuda_sys::CUdeviceptr,
-                    size,
-                    cuda_sys::CUmemRangeHandleType::CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD,
-                    0,
-                );
-                mr = rdmaxcel_sys::ibv_reg_dmabuf_mr(domain_pd, 0, size, 0, fd, access.0 as i32);
-                if mr.is_null() {
-                    return Err(anyhow::anyhow!("Failed to register dmabuf MR"));
-                }
-                mrv = RdmaMemoryRegionView {
-                    id: self.mrv_id,
-                    virtual_addr: addr,
-                    rdma_addr: (*mr).addr as usize,
-                    size,
-                    lkey: (*mr).lkey,
-                    rkey: (*mr).rkey,
-                };
-                self.mrv_id += 1;
+                // DMA-BUF path (requires ROCm 7.0+)
+                // For ROCm 6.4, this path is disabled - we rely on PyTorch allocator registration above
+                return Err(anyhow::anyhow!(
+                    "DMA-BUF registration not available in ROCm 6.4 (addr: 0x{:x}, size: {}). Use PyTorch allocator registration instead.",
+                    addr,
+                    size
+                ));
             } else {
                 // CPU memory path
                 mr = rdmaxcel_sys::ibv_reg_mr(

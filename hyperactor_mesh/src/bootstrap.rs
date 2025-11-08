@@ -1493,8 +1493,47 @@ impl BootstrapCommand {
         for arg in &self.args {
             cmd.arg(arg);
         }
+
+        // Get the number of online CPUs to detect systems with 256+ CPUs
+        let num_cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1);
+
         for (k, v) in &self.env {
+            // On systems with 256+ CPUs, filter out environment variables that could
+            // cause CPU affinity errors by trying to use CPU count as CPU index
+            if num_cpus >= 256 {
+                // Log LD_PRELOAD for debugging
+                if k == "LD_PRELOAD" {
+                    eprintln!("DEBUG: Found LD_PRELOAD in self.env: {}", v);
+                }
+                // Skip environment variables known to cause issues with CPU affinity
+                // on large CPU count systems
+                match k.as_str() {
+                    // OpenMP variables that might trigger affinity setting
+                    "OMP_PROC_BIND" | "GOMP_CPU_AFFINITY" |
+                    // Intel MKL variables
+                    "MKL_DOMAIN_NUM_THREADS" | "MKL_DYNAMIC" |
+                    // Generic thread affinity variables
+                    "KMP_AFFINITY" | "KMP_HW_SUBSET" => {
+                        tracing::debug!("Skipping env var {} on 256+ CPU system to avoid affinity errors", k);
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
             cmd.env(k, v);
+        }
+
+        // On 256+ CPU systems, explicitly disable CPU affinity to work around
+        // bugs in libraries (PyTorch, OpenMP, etc.) that try to use CPU count
+        // as a CPU index instead of as a count
+        if num_cpus >= 256 {
+            tracing::info!("Detected {} CPUs (>=256), disabling CPU affinity to avoid library bugs", num_cpus);
+            cmd.env("OMP_PROC_BIND", "false");
+            cmd.env("OMP_PLACES", "threads");
+            cmd.env("GOMP_CPU_AFFINITY", "");
+            cmd.env("KMP_AFFINITY", "disabled");
         }
         cmd
     }

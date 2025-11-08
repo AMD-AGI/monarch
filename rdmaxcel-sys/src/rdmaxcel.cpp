@@ -7,13 +7,21 @@
  */
 
 #include "rdmaxcel.h"
-#include <c10/cuda/CUDAAllocatorConfig.h>
-#include <c10/cuda/CUDACachingAllocator.h>
-#include <cuda.h>
+#include <c10/hip/HIPAllocatorConfig.h>
+#include <c10/hip/HIPCachingAllocator.h>
+
+#include <hip/hip_runtime.h>
 #include <unistd.h>
 #include <mutex>
 #include <set>
 #include <unordered_map>
+
+// ROCm 7.0+ feature detection
+#if HIP_VERSION >= 70000000
+#define HAS_HIP_DMABUF_SUPPORT 1
+#else
+#define HAS_HIP_DMABUF_SUPPORT 0
+#endif
 
 // MR size must be a multiple of 2MB
 const size_t MR_ALIGNMENT = 2ULL * 1024 * 1024;
@@ -66,7 +74,7 @@ void scan_existing_segments() {
   std::lock_guard<std::mutex> lock(segmentsMutex);
 
   // Get current snapshot from the allocator
-  auto snapshot = c10::cuda::CUDACachingAllocator::snapshot();
+  auto snapshot = c10::hip::HIPCachingAllocator::snapshot();
 
   // Create a set to track snapshot segments
   std::set<std::pair<size_t, int32_t>> snapshotSegments;
@@ -116,8 +124,8 @@ extern "C" {
 // Simple check for PyTorch CUDA allocator compatibility
 bool pt_cuda_allocator_compatibility() {
   return (
-      c10::cuda::CUDACachingAllocator::isEnabled() &&
-      c10::cuda::CUDACachingAllocator::CUDAAllocatorConfig::
+      c10::hip::HIPCachingAllocator::isEnabled() &&
+      c10::hip::HIPCachingAllocator::HIPAllocatorConfig::
           expandable_segments());
 }
 
@@ -218,6 +226,12 @@ int bind_mrs(
 // Compact multiple MRs into a single MR for a segment if SGE_MAX hit
 // TODO: setup a global lock, may be needed to safely do this
 int compact_mrs(struct ibv_pd* pd, SegmentInfo& seg, int access_flags) {
+#if !HAS_HIP_DMABUF_SUPPORT
+  // ROCm < 7.0 does not support hipMemGetHandleForAddressRange
+  // Return error indicating feature not available
+  fprintf(stderr, "[RdmaXcel] Warning: compact_mrs requires ROCm 7.0+\n");
+  return RDMAXCEL_DMABUF_HANDLE_FAILED;
+#else
   if (seg.mrs.empty()) {
     return 0; // Nothing to compact
   }
@@ -235,14 +249,17 @@ int compact_mrs(struct ibv_pd* pd, SegmentInfo& seg, int access_flags) {
 
   // Get dmabuf handle for the entire segment
   int fd = -1;
-  CUresult cu_result = cuMemGetHandleForAddressRange(
+  // Using reinterpret_cast instead of original static_cast
+  // since original CUDeviceptr is unsigned int but hipDeviceptr_t is "void *",
+  // static_cast does allow for the conversion.
+  hipError_t cu_result = hipMemGetHandleForAddressRange(
       &fd,
-      static_cast<CUdeviceptr>(start_addr),
+      reinterpret_cast<hipDeviceptr_t>(start_addr),
       total_size,
-      CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD,
+      hipMemRangeHandleTypeDmaBufFd,
       0);
 
-  if (cu_result != CUDA_SUCCESS || fd < 0) {
+  if (cu_result != hipSuccess || fd < 0) {
     return RDMAXCEL_DMABUF_HANDLE_FAILED;
   }
 
@@ -256,10 +273,18 @@ int compact_mrs(struct ibv_pd* pd, SegmentInfo& seg, int access_flags) {
   seg.mrs.push_back(mr);
 
   return 0;
+#endif
 }
 
 // Register memory region for a specific segment address, assume cuda
 int register_segments(struct ibv_pd* pd, struct ibv_qp* qp) {
+#if !HAS_HIP_DMABUF_SUPPORT
+  // ROCm < 7.0 does not support hipMemGetHandleForAddressRange
+  // RDMA memory registration requires ROCm 7.0+
+  fprintf(stderr, "[RdmaXcel] Error: register_segments requires ROCm 7.0+. Current ROCm version does not support DMA-BUF memory handles.\n");
+  fprintf(stderr, "[RdmaXcel] Please upgrade to ROCm 7.0 or later, or disable the tensor_engine feature.\n");
+  return RDMAXCEL_DMABUF_HANDLE_FAILED;
+#else
   if (!pd) {
     return RDMAXCEL_INVALID_PARAMS; // Invalid parameter
   }
@@ -297,14 +322,17 @@ int register_segments(struct ibv_pd* pd, struct ibv_qp* qp) {
         }
 
         int fd = -1;
-        CUresult cu_result = cuMemGetHandleForAddressRange(
+       // Using reinterpret_cast instead of original static_cast
+       // since original CUDeviceptr is unsigned int but hipDeviceptr_t is "void *",
+       // static_cast does allow for the conversion.
+        hipError_t cu_result = hipMemGetHandleForAddressRange(
             &fd,
-            static_cast<CUdeviceptr>(chunk_start),
+            reinterpret_cast<hipDeviceptr_t>(chunk_start),
             chunk_size,
-            CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD,
+            hipMemRangeHandleTypeDmaBufFd,
             0);
 
-        if (cu_result != CUDA_SUCCESS || fd < 0) {
+        if (cu_result != hipSuccess || fd < 0) {
           return RDMAXCEL_DMABUF_HANDLE_FAILED; // Failed to get dmabuf handle
         }
 
@@ -340,11 +368,12 @@ int register_segments(struct ibv_pd* pd, struct ibv_qp* qp) {
     }
   }
   return 0; // Success
+#endif
 }
 
 // Get PCI address from CUDA pointer
 int get_cuda_pci_address_from_ptr(
-    CUdeviceptr cuda_ptr,
+    hipDeviceptr_t cuda_ptr,
     char* pci_addr_out,
     size_t pci_addr_size) {
   if (!pci_addr_out || pci_addr_size < 16) {
@@ -352,16 +381,16 @@ int get_cuda_pci_address_from_ptr(
   }
 
   int device_ordinal = -1;
-  CUresult err = cuPointerGetAttribute(
-      &device_ordinal, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL, cuda_ptr);
+  hipError_t err = hipPointerGetAttribute(
+      &device_ordinal, HIP_POINTER_ATTRIBUTE_DEVICE_ORDINAL, cuda_ptr);
 
-  if (err != CUDA_SUCCESS) {
+  if (err != hipSuccess) {
     return RDMAXCEL_CUDA_GET_ATTRIBUTE_FAILED;
   }
 
-  CUdevice device;
-  err = cuDeviceGet(&device, device_ordinal);
-  if (err != CUDA_SUCCESS) {
+  hipDevice_t device;
+  err = hipDeviceGet(&device, device_ordinal);
+  if (err != hipSuccess) {
     return RDMAXCEL_CUDA_GET_DEVICE_FAILED;
   }
 
@@ -371,22 +400,22 @@ int get_cuda_pci_address_from_ptr(
 
   // Get PCI bus ID
   err =
-      cuDeviceGetAttribute(&pci_bus_id, CU_DEVICE_ATTRIBUTE_PCI_BUS_ID, device);
-  if (err != CUDA_SUCCESS) {
+      hipDeviceGetAttribute(&pci_bus_id, hipDeviceAttributePciBusId, device);
+  if (err != hipSuccess) {
     return RDMAXCEL_CUDA_GET_ATTRIBUTE_FAILED;
   }
 
   // Get PCI device ID
-  err = cuDeviceGetAttribute(
-      &pci_device_id, CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID, device);
-  if (err != CUDA_SUCCESS) {
+  err = hipDeviceGetAttribute(
+      &pci_device_id, hipDeviceAttributePciDeviceId, device);
+  if (err != hipSuccess) {
     return RDMAXCEL_CUDA_GET_ATTRIBUTE_FAILED;
   }
 
   // Get PCI domain ID
-  err = cuDeviceGetAttribute(
-      &pci_domain_id, CU_DEVICE_ATTRIBUTE_PCI_DOMAIN_ID, device);
-  if (err != CUDA_SUCCESS) {
+  err = hipDeviceGetAttribute(
+      &pci_domain_id, hipDeviceAttributePciDomainID, device);
+  if (err != hipSuccess) {
     return RDMAXCEL_CUDA_GET_ATTRIBUTE_FAILED;
   }
 

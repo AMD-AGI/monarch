@@ -11,13 +11,17 @@ fn main() {}
 
 #[cfg(not(target_os = "macos"))]
 fn main() {
-    // Validate CUDA installation and get CUDA home path
-    let _cuda_home = match build_utils::validate_cuda_installation() {
-        Ok(home) => home,
-        Err(_) => {
-            build_utils::print_cuda_error_help();
-            std::process::exit(1);
-        }
+    // Try ROCm first, fall back to CUDA
+    let (is_rocm, compute_home, compute_lib_names) = if let Ok(rocm_home) = build_utils::validate_rocm_installation() {
+        println!("cargo::warning=Using HIP/ROCm from {}", rocm_home);
+        (true, rocm_home, vec!["amdhip64"])
+    } else if let Ok(cuda_home) = build_utils::validate_cuda_installation() {
+        println!("cargo::warning=Using CUDA from {}", cuda_home);
+        (false, cuda_home, vec!["cuda", "cudart"])
+    } else {
+        eprintln!("Error: Neither CUDA nor ROCm installation found!");
+        eprintln!("Please install CUDA or ROCm.");
+        std::process::exit(1);
     };
 
     // Include headers and libs from the active environment.
@@ -39,17 +43,28 @@ fn main() {
         println!("cargo:metadata=LIB_PATH={}", lib_dir);
     }
 
-    // Get CUDA library directory and emit link directives
-    let cuda_lib_dir = match build_utils::get_cuda_lib_dir() {
-        Ok(dir) => dir,
-        Err(_) => {
-            build_utils::print_cuda_lib_error_help();
-            std::process::exit(1);
+    // Get CUDA/ROCm library directory and emit link directives
+    let compute_lib_dir = if is_rocm {
+        match build_utils::get_rocm_lib_dir() {
+            Ok(dir) => dir,
+            Err(_) => {
+                build_utils::print_rocm_lib_error_help();
+                std::process::exit(1);
+            }
+        }
+    } else {
+        match build_utils::get_cuda_lib_dir() {
+            Ok(dir) => dir,
+            Err(_) => {
+                build_utils::print_cuda_lib_error_help();
+                std::process::exit(1);
+            }
         }
     };
-    println!("cargo:rustc-link-search=native={}", cuda_lib_dir);
-    println!("cargo:rustc-link-lib=cuda");
-    println!("cargo:rustc-link-lib=cudart");
+    println!("cargo:rustc-link-search=native={}", compute_lib_dir);
+    for lib_name in &compute_lib_names {
+        println!("cargo:rustc-link-lib={}", lib_name);
+    }
 
     // Link against the ibverbs and mlx5 libraries (used by rdmaxcel-sys)
     println!("cargo:rustc-link-lib=ibverbs");
@@ -82,7 +97,11 @@ fn main() {
         println!("cargo:rustc-link-lib=torch_cpu");
         println!("cargo:rustc-link-lib=torch");
         println!("cargo:rustc-link-lib=c10");
-        println!("cargo:rustc-link-lib=c10_cuda");
+        if is_rocm {
+            println!("cargo:rustc-link-lib=c10_hip");
+        } else {
+            println!("cargo:rustc-link-lib=c10_cuda");
+        }
     } else {
         // Fallback to torch-sys links metadata if available
         if let Ok(torch_lib_path) = std::env::var("DEP_TORCH_LIB_PATH") {

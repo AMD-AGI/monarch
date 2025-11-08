@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
  * All rights reserved.
@@ -7,7 +8,7 @@
  */
 
 #include <assert.h>
-#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
 #include <stdint.h>
 #include "rdmaxcel.h"
 
@@ -186,7 +187,7 @@ void launch_recv_wqe(wqe_params_t params) {
   cu_recv_wqe<<<1, 1>>>(params);
 
   // Wait for kernel to complete
-  cudaDeviceSynchronize();
+  hipDeviceSynchronize();
 }
 
 /**
@@ -271,7 +272,7 @@ void launch_send_wqe(wqe_params_t params) {
   cu_send_wqe<<<1, 1>>>(params);
 
   // Wait for kernel to complete
-  cudaDeviceSynchronize();
+  hipDeviceSynchronize();
 }
 
 //------------------------------------------------------------------------------
@@ -361,8 +362,8 @@ cqe_poll_result_t launch_cqe_poll(void* mlx5dv_cq_void, int consumer_index) {
 
   // Allocate memory for result
   int32_t* byte_cnt = nullptr;
-  cudaError_t err = cudaMallocManaged(&byte_cnt, sizeof(int32_t));
-  if (err != cudaSuccess) {
+  hipError_t err = hipMallocManaged(&byte_cnt, sizeof(int32_t));
+  if (err != hipSuccess) {
     return CQE_POLL_ERROR;
   }
   *byte_cnt = -1; // Initialize to false
@@ -379,18 +380,18 @@ cqe_poll_result_t launch_cqe_poll(void* mlx5dv_cq_void, int consumer_index) {
   cu_cqe_poll<<<1, 1>>>(byte_cnt, params);
 
   // Synchronize and get result
-  cudaDeviceSynchronize();
+  hipDeviceSynchronize();
 
   // Check for errors
-  err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    cudaFree(byte_cnt);
+  err = hipGetLastError();
+  if (err != hipSuccess) {
+    hipFree(byte_cnt);
     return CQE_POLL_ERROR;
   }
 
   // Get the result
   cqe_poll_result_t ret_val = *byte_cnt >= 0 ? CQE_POLL_TRUE : CQE_POLL_FALSE;
-  cudaFree(byte_cnt);
+  hipFree(byte_cnt);
   return ret_val;
 }
 

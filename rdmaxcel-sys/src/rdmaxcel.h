@@ -9,8 +9,7 @@
 #ifndef RDMAXCEL_H
 #define RDMAXCEL_H
 
-#include <cuda.h>
-#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
 #include <infiniband/mlx5dv.h>
 #include <infiniband/verbs.h>
 
@@ -23,12 +22,6 @@ typedef enum {
   CQE_POLL_FALSE = 0,
   CQE_POLL_TRUE = 1
 } cqe_poll_result_t;
-
-// RDMA queue pair type selection
-typedef enum {
-  RDMA_QP_TYPE_STANDARD = 1, // Standard ibverbs queue pair
-  RDMA_QP_TYPE_MLX5DV = 2 // mlx5dv extended queue pair
-} rdma_qp_type_t;
 
 // C-compatible structure for CUDA segment information
 typedef struct {
@@ -68,6 +61,10 @@ typedef struct {
   uint32_t* dbrec; // Doorbell record (mlx5dv_cq->dbrec)
 } cqe_poll_params_t;
 
+// Queue Pair type constants
+#define RDMA_QP_TYPE_STANDARD 0
+#define RDMA_QP_TYPE_MLX5DV 1
+
 struct ibv_qp* create_qp(
     struct ibv_context* context,
     struct ibv_pd* pd,
@@ -76,7 +73,7 @@ struct ibv_qp* create_qp(
     int max_recv_wr,
     int max_send_sge,
     int max_recv_sge,
-    rdma_qp_type_t qp_type);
+    uint32_t qp_type);
 
 struct mlx5dv_qp* create_mlx5dv_qp(struct ibv_qp* qp);
 
@@ -84,7 +81,7 @@ struct mlx5dv_cq* create_mlx5dv_cq(struct ibv_qp* qp);
 struct mlx5dv_cq* create_mlx5dv_send_cq(struct ibv_qp* qp);
 struct mlx5dv_cq* create_mlx5dv_recv_cq(struct ibv_qp* qp);
 
-cudaError_t register_cuda_memory(
+hipError_t register_cuda_memory(
     struct mlx5dv_qp* dv_qp,
     struct mlx5dv_cq* dv_recv_cq,
     struct mlx5dv_cq* dv_send_cq);
@@ -151,7 +148,7 @@ int deregister_segments();
 
 // CUDA utility functions
 int get_cuda_pci_address_from_ptr(
-    CUdeviceptr cuda_ptr,
+    hipDeviceptr_t cuda_ptr,
     char* pci_addr_out,
     size_t pci_addr_size);
 

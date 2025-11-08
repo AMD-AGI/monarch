@@ -26,13 +26,18 @@ fn main() {
     println!("cargo:rerun-if-changed=src/rdmaxcel.c");
     println!("cargo:rerun-if-changed=src/rdmaxcel.cpp");
 
-    // Validate CUDA installation and get CUDA home path
-    let cuda_home = match build_utils::validate_cuda_installation() {
-        Ok(home) => home,
-        Err(_) => {
-            build_utils::print_cuda_error_help();
-            std::process::exit(1);
-        }
+    // Try ROCm first, fall back to CUDA
+    let (is_rocm, compute_home, compute_lib_names) = if let Ok(rocm_home) = build_utils::validate_rocm_installation() {
+        println!("cargo::warning=Using HIP/ROCm from {}", rocm_home);
+        (true, rocm_home, vec!["amdhip64"])
+    } else if let Ok(cuda_home) = build_utils::validate_cuda_installation() {
+        println!("cargo::warning=Using CUDA from {}", cuda_home);
+        (false, cuda_home, vec!["cuda", "cudart"])
+    } else {
+        eprintln!("Error: Neither CUDA nor ROCm installation found!");
+        build_utils::print_cuda_error_help();
+        build_utils::print_rocm_error_help();
+        std::process::exit(1);
     };
 
     // Get the directory of the current crate
@@ -97,6 +102,7 @@ fn main() {
         .allowlist_type("rdma_segment_info_t")
         .allowlist_var("MLX5_.*")
         .allowlist_var("IBV_.*")
+        .allowlist_var("RDMA_QP_TYPE_.*")
         // Block specific types that are manually defined in lib.rs
         .blocklist_type("ibv_wc")
         .blocklist_type("mlx5_wqe_ctrl_seg")
@@ -115,10 +121,17 @@ fn main() {
         .derive_default(true)
         .prepend_enum_name(false);
 
-    // Add CUDA include path (we already validated it exists)
-    let cuda_include_path = format!("{}/include", cuda_home);
-    println!("cargo:rustc-env=CUDA_INCLUDE_PATH={}", cuda_include_path);
-    builder = builder.clang_arg(format!("-I{}", cuda_include_path));
+    // Add compute (CUDA/ROCm) include path (we already validated it exists)
+    let compute_include_path = format!("{}/include", compute_home);
+    println!("cargo:rustc-env=CUDA_INCLUDE_PATH={}", compute_include_path);
+    builder = builder.clang_arg(format!("-I{}", compute_include_path));
+
+    // Define HIP platform macros when using ROCm
+    if is_rocm {
+        builder = builder
+            .clang_arg("-D__HIP_PLATFORM_AMD__=1")
+            .clang_arg("-DUSE_ROCM=1");
+    }
 
     // Include headers and libs from the active environment.
     let python_config = match build_utils::python_env_dirs_with_interpreter("python3") {
@@ -140,24 +153,35 @@ fn main() {
         println!("cargo:metadata=LIB_PATH={}", lib_dir);
     }
 
-    // Get CUDA library directory and emit link directives
-    let cuda_lib_dir = match build_utils::get_cuda_lib_dir() {
-        Ok(dir) => dir,
-        Err(_) => {
-            build_utils::print_cuda_lib_error_help();
-            std::process::exit(1);
+    // Get compute library directory and emit link directives
+    let compute_lib_dir = if is_rocm {
+        match build_utils::get_rocm_lib_dir() {
+            Ok(dir) => dir,
+            Err(_) => {
+                build_utils::print_rocm_lib_error_help();
+                std::process::exit(1);
+            }
+        }
+    } else {
+        match build_utils::get_cuda_lib_dir() {
+            Ok(dir) => dir,
+            Err(_) => {
+                build_utils::print_cuda_lib_error_help();
+                std::process::exit(1);
+            }
         }
     };
-    println!("cargo:rustc-link-search=native={}", cuda_lib_dir);
-    println!("cargo:rustc-link-lib=cuda");
-    println!("cargo:rustc-link-lib=cudart");
+    println!("cargo:rustc-link-search=native={}", compute_lib_dir);
+    for lib_name in &compute_lib_names {
+        println!("cargo:rustc-link-lib={}", lib_name);
+    }
 
     // Link PyTorch C++ libraries for c10 symbols
     let use_pytorch_apis = build_utils::get_env_var_with_rerun("TORCH_SYS_USE_PYTORCH_APIS")
         .unwrap_or_else(|_| "1".to_owned());
     if use_pytorch_apis == "1" {
         // Try to get PyTorch library directory
-        let python_interpreter = std::path::PathBuf::from("python");
+        let python_interpreter = std::path::PathBuf::from("python3");
         if let Ok(output) = std::process::Command::new(&python_interpreter)
             .arg("-c")
             .arg(build_utils::PYTHON_PRINT_PYTORCH_DETAILS)
@@ -203,8 +227,14 @@ fn main() {
                     .include(format!("{}/src", manifest_dir))
                     .flag("-fPIC");
 
-                // Add CUDA include paths - reuse the paths we already found for bindgen
-                build.include(&cuda_include_path);
+                // Add compute include paths - reuse the paths we already found for bindgen
+                build.include(&compute_include_path);
+
+                // Define HIP platform macros when using ROCm
+                if is_rocm {
+                    build.define("__HIP_PLATFORM_AMD__", "1");
+                    build.define("USE_ROCM", "1");
+                }
 
                 build.compile("rdmaxcel");
             } else {
@@ -223,7 +253,7 @@ fn main() {
 
                 if use_pytorch_apis == "1" {
                     // Use Python to get PyTorch include paths (same as torch-sys)
-                    let python_interpreter = PathBuf::from("python");
+                    let python_interpreter = PathBuf::from("python3");
                     let output = std::process::Command::new(&python_interpreter)
                         .arg("-c")
                         .arg(build_utils::PYTHON_PRINT_PYTORCH_DETAILS)
@@ -255,8 +285,14 @@ fn main() {
                     .flag("-std=gnu++20")
                     .define("PYTORCH_C10_DRIVER_API_SUPPORTED", "1");
 
-                // Add CUDA include paths
-                cpp_build.include(&cuda_include_path);
+                // Add compute include paths
+                cpp_build.include(&compute_include_path);
+
+                // Define HIP platform macros when using ROCm
+                if is_rocm {
+                    cpp_build.define("__HIP_PLATFORM_AMD__", "1");
+                    cpp_build.define("USE_ROCM", "1");
+                }
 
                 // Add PyTorch/C10 include paths
                 for include_dir in &libtorch_include_dirs {
@@ -272,11 +308,15 @@ fn main() {
             } else {
                 panic!("C++ source file not found at {}", cpp_source_path);
             }
-            // Compile the CUDA source file
+            // Compile the CUDA/HIP source file
             let cuda_source_path = format!("{}/src/rdmaxcel.cu", manifest_dir);
             if Path::new(&cuda_source_path).exists() {
-                // Use the CUDA home path we already validated
-                let nvcc_path = format!("{}/bin/nvcc", cuda_home);
+                // Use the appropriate compiler (hipcc for ROCm, nvcc for CUDA)
+                let (compiler_path, compiler_name) = if is_rocm {
+                    (format!("{}/bin/hipcc", compute_home), "hipcc")
+                } else {
+                    (format!("{}/bin/nvcc", compute_home), "nvcc")
+                };
 
                 // Set up fixed output directory - use a predictable path instead of dynamic OUT_DIR
                 let cuda_build_dir = format!("{}/target/cuda_build", manifest_dir);
@@ -286,38 +326,59 @@ fn main() {
                 let cuda_obj_path = format!("{}/rdmaxcel_cuda.o", cuda_build_dir);
                 let cuda_lib_path = format!("{}/librdmaxcel_cuda.a", cuda_build_dir);
 
-                // Use nvcc to compile the CUDA file
-                let nvcc_output = std::process::Command::new(&nvcc_path)
-                    .args(&[
-                        "-c",
-                        &cuda_source_path,
-                        "-o",
-                        &cuda_obj_path,
-                        "--compiler-options",
-                        "-fPIC",
-                        "-std=c++20",
-                        "--expt-extended-lambda",
-                        "-Xcompiler",
-                        "-fPIC",
-                        &format!("-I{}", cuda_include_path),
-                        &format!("-I{}/src", manifest_dir),
-                        &format!("-I/usr/include"),
-                        &format!("-I/usr/include/infiniband"),
-                    ])
-                    .output();
+                // Compile with the appropriate compiler (hipcc or nvcc)
+                let compiler_output = if is_rocm {
+                    // HIP compilation with hipcc
+                    std::process::Command::new(&compiler_path)
+                        .args(&[
+                            "-c",
+                            &cuda_source_path,
+                            "-o",
+                            &cuda_obj_path,
+                            "-fPIC",
+                            "-std=c++20",
+                            "-D__HIP_PLATFORM_AMD__=1",
+                            "-DUSE_ROCM=1",
+                            &format!("-I{}", compute_include_path),
+                            &format!("-I{}/src", manifest_dir),
+                            &format!("-I/usr/include"),
+                            &format!("-I/usr/include/infiniband"),
+                        ])
+                        .output()
+                } else {
+                    // CUDA compilation with nvcc
+                    std::process::Command::new(&compiler_path)
+                        .args(&[
+                            "-c",
+                            &cuda_source_path,
+                            "-o",
+                            &cuda_obj_path,
+                            "--compiler-options",
+                            "-fPIC",
+                            "-std=c++20",
+                            "--expt-extended-lambda",
+                            "-Xcompiler",
+                            "-fPIC",
+                            &format!("-I{}", compute_include_path),
+                            &format!("-I{}/src", manifest_dir),
+                            &format!("-I/usr/include"),
+                            &format!("-I/usr/include/infiniband"),
+                        ])
+                        .output()
+                };
 
-                match nvcc_output {
+                match compiler_output {
                     Ok(output) => {
                         if !output.status.success() {
-                            eprintln!("nvcc stderr: {}", String::from_utf8_lossy(&output.stderr));
-                            eprintln!("nvcc stdout: {}", String::from_utf8_lossy(&output.stdout));
-                            panic!("Failed to compile CUDA source with nvcc");
+                            eprintln!("{} stderr: {}", compiler_name, String::from_utf8_lossy(&output.stderr));
+                            eprintln!("{} stdout: {}", compiler_name, String::from_utf8_lossy(&output.stdout));
+                            panic!("Failed to compile CUDA/HIP source with {}", compiler_name);
                         }
                         println!("cargo:rerun-if-changed={}", cuda_source_path);
                     }
                     Err(e) => {
-                        eprintln!("Failed to run nvcc: {}", e);
-                        panic!("nvcc not found or failed to execute");
+                        eprintln!("Failed to run {}: {}", compiler_name, e);
+                        panic!("{} not found or failed to execute", compiler_name);
                     }
                 }
 

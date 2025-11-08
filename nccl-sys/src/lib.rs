@@ -9,25 +9,6 @@
 use cxx::ExternType;
 use cxx::type_id;
 
-/// SAFETY: bindings
-unsafe impl ExternType for CUstream_st {
-    type Id = type_id!("CUstream_st");
-    type Kind = cxx::kind::Opaque;
-}
-
-/// SAFETY: bindings
-/// Trivial because this is POD struct
-unsafe impl ExternType for ncclConfig_t {
-    type Id = type_id!("ncclConfig_t");
-    type Kind = cxx::kind::Trivial;
-}
-
-/// SAFETY: bindings
-unsafe impl ExternType for ncclComm {
-    type Id = type_id!("ncclComm");
-    type Kind = cxx::kind::Opaque;
-}
-
 // When building with cargo, this is actually the lib.rs file for a crate.
 // Include the generated bindings.rs and suppress lints.
 #[allow(non_camel_case_types)]
@@ -79,6 +60,33 @@ mod inner {
 }
 
 pub use inner::*;
+
+// When using RCCL (ROCm), the header defines:
+//   typedef struct ihipStream_t CUstream_st;
+// But bindgen only generates ihipStream_t, not CUstream_st.
+// We need to create the typedef and ExternType impl ourselves.
+#[allow(non_camel_case_types)]
+pub type CUstream_st = ihipStream_t;
+
+/// SAFETY: bindings
+/// For ROCm/HIP compatibility, map CUstream_st to ihipStream_t
+unsafe impl ExternType for ihipStream_t {
+    type Id = type_id!("CUstream_st");
+    type Kind = cxx::kind::Opaque;
+}
+
+/// SAFETY: bindings
+/// Trivial because this is POD struct
+unsafe impl ExternType for ncclConfig_t {
+    type Id = type_id!("ncclConfig_t");
+    type Kind = cxx::kind::Trivial;
+}
+
+/// SAFETY: bindings
+unsafe impl ExternType for ncclComm {
+    type Id = type_id!("ncclComm");
+    type Kind = cxx::kind::Opaque;
+}
 
 #[cfg(test)]
 mod tests {

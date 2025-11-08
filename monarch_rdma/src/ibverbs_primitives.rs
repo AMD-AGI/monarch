@@ -558,6 +558,9 @@ pub fn format_gid(gid: &[u8; 16]) -> String {
 /// detailed information about each device, including its capabilities, ports,
 /// and attributes.
 ///
+/// Devices are sorted to prefer Mellanox (mlx*) devices over others, as Mellanox
+/// devices generally have better RDMA support and stability.
+///
 /// # Returns
 ///
 /// A vector of `RdmaDevice` structures, each representing an RDMA device in the system.
@@ -659,6 +662,25 @@ pub fn get_all_devices() -> Vec<RdmaDevice> {
 
         rdmaxcel_sys::ibv_free_device_list(device_list);
     }
+
+    // Filter out Broadcom bnxt_re devices if Mellanox devices are available
+    // bnxt_re drivers have known issues with queue pair creation on some systems
+    let has_mlx = devices.iter().any(|d| d.name.starts_with("mlx"));
+    if has_mlx {
+        devices.retain(|d| !d.name.starts_with("bnxt_re"));
+        tracing::info!("Filtered out Broadcom bnxt_re devices, using Mellanox devices");
+    }
+
+    // Sort devices to prefer Mellanox (mlx*) devices first
+    devices.sort_by(|a, b| {
+        let a_is_mlx = a.name.starts_with("mlx");
+        let b_is_mlx = b.name.starts_with("mlx");
+        match (a_is_mlx, b_is_mlx) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.cmp(&b.name),
+        }
+    });
 
     devices
 }

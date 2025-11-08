@@ -13,17 +13,37 @@ fn main() {}
 
 #[cfg(not(target_os = "macos"))]
 fn main() {
+    // Try ROCm first, fall back to CUDA
+    let (compute_home, nccl_lib_name) = if let Some(rocm_home) = build_utils::find_rocm_home() {
+        println!("cargo::warning=Using RCCL from ROCm installation at {}", rocm_home);
+        (rocm_home, "rccl")
+    } else if let Some(cuda_home) = build_utils::find_cuda_home() {
+        println!("cargo::warning=Using NCCL from CUDA installation at {}", cuda_home);
+        (cuda_home, "nccl")
+    } else {
+        eprintln!("Error: Neither CUDA nor ROCm installation found!");
+        build_utils::print_cuda_error_help();
+        build_utils::print_rocm_error_help();
+        std::process::exit(1);
+    };
+
     let mut builder = bindgen::Builder::default()
-        // Parse nccl.h as C++ with -std=gnu++20.
+        // Parse nccl.h (or rccl.h) as C++ with -std=gnu++20.
         .header("src/nccl.h")
         .clang_arg("-x")
         .clang_arg("c++")
         .clang_arg("-std=gnu++20")
-        .clang_arg(format!(
-            "-I{}/include",
-            build_utils::find_cuda_home().unwrap()
-        ))
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .clang_arg(format!("-I{}/include", compute_home));
+
+    // For ROCm, also add the rccl-specific include path and define HIP macros
+    if nccl_lib_name == "rccl" {
+        builder = builder
+            .clang_arg(format!("-I{}/include/rccl", compute_home))
+            .clang_arg("-D__HIP_PLATFORM_AMD__=1")
+            .clang_arg("-DUSE_ROCM=1");
+    }
+
+    builder = builder.parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         // Communicator creation and management
         .allowlist_function("ncclGetLastError")
         .allowlist_function("ncclGetErrorString")
@@ -111,7 +131,8 @@ fn main() {
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 
-    println!("cargo::rustc-link-lib=nccl");
+    // Link against the appropriate library (rccl for ROCm, nccl for CUDA)
+    println!("cargo::rustc-link-lib={}", nccl_lib_name);
     println!("cargo::rustc-cfg=cargo");
     println!("cargo::rustc-check-cfg=cfg(cargo)");
 }
