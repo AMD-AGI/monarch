@@ -29,7 +29,8 @@ fn main() {
     // Try ROCm first, fall back to CUDA
     let (is_rocm, compute_home, compute_lib_names) = if let Ok(rocm_home) = build_utils::validate_rocm_installation() {
         println!("cargo::warning=Using HIP/ROCm from {}", rocm_home);
-        (true, rocm_home, vec!["amdhip64"])
+        // Link both HIP and HSA runtime for dmabuf support
+        (true, rocm_home, vec!["amdhip64", "hsa-runtime64"])
     } else if let Ok(cuda_home) = build_utils::validate_cuda_installation() {
         println!("cargo::warning=Using CUDA from {}", cuda_home);
         (false, cuda_home, vec!["cuda", "cudart"])
@@ -93,6 +94,7 @@ fn main() {
         .allowlist_function("pt_cuda_allocator_compatibility")
         .allowlist_function("register_segments")
         .allowlist_function("deregister_segments")
+        .allowlist_function("register_dmabuf_buffer")
         .allowlist_type("ibv_.*")
         .allowlist_type("mlx5dv_.*")
         .allowlist_type("mlx5_wqe_.*")

@@ -280,6 +280,8 @@ pub mod test_utils {
         len: usize,
         #[allow(dead_code)]
         cpu_ref: Option<Box<[u8]>>,
+        // Track if this is a hipMalloc allocation (true) or hipMemCreate/VMM (false)
+        is_hip_malloc: bool,
     }
     /// Helper function to parse accelerator strings
     async fn parse_accel(accel: &str, config: &mut IbverbsConfig) -> (String, usize) {
@@ -312,6 +314,7 @@ pub mod test_utils {
             accel2: &str,
             qp_type: crate::ibverbs_primitives::RdmaQpType,
         ) -> Result<Self, anyhow::Error> {
+            eprintln!("[DEBUG] setup_with_qp_type: START accel1={}, accel2={}, qp_type={:?}", accel1, accel2, qp_type);
             // Use device selection logic to find optimal RDMA devices
             let mut config1 = IbverbsConfig::targeting(accel1);
             let mut config2 = IbverbsConfig::targeting(accel2);
@@ -320,8 +323,10 @@ pub mod test_utils {
             config1.qp_type = qp_type;
             config2.qp_type = qp_type;
 
+            eprintln!("[DEBUG] setup_with_qp_type: About to parse accels");
             let parsed_accel1 = parse_accel(accel1, &mut config1).await;
             let parsed_accel2 = parse_accel(accel2, &mut config2).await;
+            eprintln!("[DEBUG] setup_with_qp_type: Parsed accels - accel1={:?}, accel2={:?}", parsed_accel1, parsed_accel2);
 
             let alloc_1 = LocalAllocator
                 .allocate(AllocSpec {
@@ -333,13 +338,17 @@ pub mod test_utils {
                 .await
                 .unwrap();
 
+            eprintln!("[DEBUG] setup_with_qp_type: About to create proc instance");
             let (instance, _) = Proc::local().instance("test").unwrap();
 
+            eprintln!("[DEBUG] setup_with_qp_type: About to allocate proc_mesh_1");
             let proc_mesh_1 = Box::leak(Box::new(ProcMesh::allocate(alloc_1).await.unwrap()));
+            eprintln!("[DEBUG] setup_with_qp_type: About to spawn actor_mesh_1 with config1");
             let actor_mesh_1: RootActorMesh<'_, RdmaManagerActor> = proc_mesh_1
                 .spawn(&instance, "rdma_manager", &Some(config1))
                 .await
                 .unwrap();
+            eprintln!("[DEBUG] setup_with_qp_type: actor_mesh_1 spawned successfully");
 
             let alloc_2 = LocalAllocator
                 .allocate(AllocSpec {
@@ -351,122 +360,175 @@ pub mod test_utils {
                 .await
                 .unwrap();
 
+            eprintln!("[DEBUG] setup_with_qp_type: About to allocate proc_mesh_2");
             let proc_mesh_2 = Box::leak(Box::new(ProcMesh::allocate(alloc_2).await.unwrap()));
+            eprintln!("[DEBUG] setup_with_qp_type: About to spawn actor_mesh_2 with config2");
             let actor_mesh_2: RootActorMesh<'_, RdmaManagerActor> = proc_mesh_2
                 .spawn(&instance, "rdma_manager", &Some(config2))
                 .await
                 .unwrap();
+            eprintln!("[DEBUG] setup_with_qp_type: actor_mesh_2 spawned successfully");
 
+            eprintln!("[DEBUG] setup_with_qp_type: About to allocate buffers");
             let mut buf_vec = Vec::new();
             let mut cuda_contexts = Vec::new();
 
-            for accel in [parsed_accel1.clone(), parsed_accel2.clone()] {
+            for (idx, accel) in [parsed_accel1.clone(), parsed_accel2.clone()].iter().enumerate() {
+                eprintln!("[DEBUG] setup_with_qp_type: Processing buffer {} for accel {:?}", idx, accel);
                 if accel.0 == "cpu" {
                     let mut buffer = vec![0u8; buffer_size].into_boxed_slice();
                     buf_vec.push(Buffer {
                         ptr: buffer.as_mut_ptr() as u64,
                         len: buffer.len(),
                         cpu_ref: Some(buffer),
+                        is_hip_malloc: false,
                     });
                     cuda_contexts.push(None);
                     continue;
                 }
                 // HIP/ROCm case
                 unsafe {
+                    eprintln!("[DEBUG] setup_with_qp_type: HIP buffer allocation starting");
                     cu_check!(cuda_sys::hipInit(0));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipInit done");
 
-                    let mut dptr: cuda_sys::hipDeviceptr_t = std::mem::zeroed();
+                    let mut dptr: *mut std::ffi::c_void = std::ptr::null_mut();
                     let mut handle: cuda_sys::hipMemGenericAllocationHandle_t = std::mem::zeroed();
 
                     let mut device: i32 = accel.1 as i32;
                     cu_check!(cuda_sys::hipDeviceGet(&mut device, accel.1 as i32));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipDeviceGet done, device={}", device);
 
-                    let mut context: cuda_sys::hipCtx_t = std::mem::zeroed();
+                    let mut context: cuda_sys::hipCtx_t = std::ptr::null_mut();
                     cu_check!(cuda_sys::hipCtxCreate(&mut context, 0, device));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipCtxCreate done");
                     cu_check!(cuda_sys::hipCtxSetCurrent(context));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipCtxSetCurrent done");
 
+                    // For Standard QP on ROCm < 7.0, use hipMalloc instead of hipMemCreate
+                    // because HSA dmabuf export only works with hipMalloc allocations on ROCm 6.x
+                    // ROCm 7.0+ has hipMemGetHandleForAddressRange which works with hipMemCreate
+                    let use_hip_malloc = matches!(qp_type, crate::ibverbs_primitives::RdmaQpType::Standard);
+
+                    if use_hip_malloc {
+                        eprintln!("[DEBUG] setup_with_qp_type: Using hipMalloc for Standard QP on ROCm < 7.0");
+                        cu_check!(cuda_sys::hipMalloc(&mut dptr, buffer_size));
+                        eprintln!("[DEBUG] setup_with_qp_type: hipMalloc done, ptr={:p}", dptr);
+
+                        buf_vec.push(Buffer {
+                            ptr: dptr as u64,
+                            len: buffer_size,
+                            cpu_ref: None,
+                            is_hip_malloc: true,
+                        });
+                        eprintln!("[DEBUG] setup_with_qp_type: Buffer {} pushed", idx);
+                        cuda_contexts.push(Some(context));
+                        continue;
+                    }
+
+                    eprintln!("[DEBUG] setup_with_qp_type: Using hipMemCreate/hipMemMap allocation");
+                    eprintln!("[DEBUG] setup_with_qp_type: About to setup hipMemAllocationProp");
                     let mut granularity: usize = 0;
                     let mut prop: cuda_sys::hipMemAllocationProp = std::mem::zeroed();
                     prop.type_ = cuda_sys::hipMemAllocationType::hipMemAllocationTypePinned;
                     prop.location.type_ = cuda_sys::hipMemLocationType::hipMemLocationTypeDevice;
                     prop.location.id = device;
                     prop.allocFlags.gpuDirectRDMACapable = 1;
-                    prop.requestedHandleTypes =
+                    prop.requestedHandleType =
                         cuda_sys::hipMemAllocationHandleType::hipMemHandleTypePosixFileDescriptor;
 
+                    eprintln!("[DEBUG] setup_with_qp_type: About to call hipMemGetAllocationGranularity");
                     cu_check!(cuda_sys::hipMemGetAllocationGranularity(
                         &mut granularity as *mut usize,
                         &prop,
                         cuda_sys::hipMemAllocationGranularity_flags::hipMemAllocationGranularityMinimum,
                     ));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipMemGetAllocationGranularity done, granularity={}", granularity);
 
                     // ensure our size is aligned
                     let /*mut*/ padded_size: usize = ((buffer_size - 1) / granularity + 1) * granularity;
                     assert!(padded_size == buffer_size);
 
+                    eprintln!("[DEBUG] setup_with_qp_type: About to call hipMemCreate, size={}", padded_size);
                     cu_check!(cuda_sys::hipMemCreate(
                         &mut handle as *mut cuda_sys::hipMemGenericAllocationHandle_t,
                         padded_size,
                         &prop,
                         0
                     ));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipMemCreate done");
                     // reserve and map the memory
+                    eprintln!("[DEBUG] setup_with_qp_type: About to call hipMemAddressReserve");
                     cu_check!(cuda_sys::hipMemAddressReserve(
-                        &mut dptr as *mut cuda_sys::hipDeviceptr_t,
+                        &mut dptr,
                         padded_size,
                         0,
-                        0,
+                        std::ptr::null_mut(),
                         0,
                     ));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipMemAddressReserve done");
                     assert!((dptr as usize).is_multiple_of(granularity));
                     assert!(padded_size.is_multiple_of(granularity));
 
+                    eprintln!("[DEBUG] setup_with_qp_type: About to call hipMemMap");
                     // fails if a add cu_check macro; but passes if we don't
                     let err = cuda_sys::hipMemMap(
-                        dptr as cuda_sys::hipDeviceptr_t,
+                        dptr,
                         padded_size,
                         0,
                         handle as cuda_sys::hipMemGenericAllocationHandle_t,
                         0,
                     );
+                    eprintln!("[DEBUG] setup_with_qp_type: hipMemMap returned {:?}", err);
                     if err != cuda_sys::hipError_t::hipSuccess {
                         panic!("failed reserving and mapping memory {:?}", err);
                     }
+                    eprintln!("[DEBUG] setup_with_qp_type: hipMemMap completed successfully");
 
                     // set access
+                    eprintln!("[DEBUG] setup_with_qp_type: About to setup access");
                     let mut access_desc: cuda_sys::hipMemAccessDesc = std::mem::zeroed();
                     access_desc.location.type_ =
                         cuda_sys::hipMemLocationType::hipMemLocationTypeDevice;
                     access_desc.location.id = device;
                     access_desc.flags =
                         cuda_sys::hipMemAccessFlags::hipMemAccessFlagsProtReadWrite;
+                    eprintln!("[DEBUG] setup_with_qp_type: About to call hipMemSetAccess");
                     cu_check!(cuda_sys::hipMemSetAccess(dptr, padded_size, &access_desc, 1));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipMemSetAccess done");
                     buf_vec.push(Buffer {
-                        ptr: dptr,
+                        ptr: dptr as u64,
                         len: padded_size,
                         cpu_ref: None,
+                        is_hip_malloc: false,
                     });
+                    eprintln!("[DEBUG] setup_with_qp_type: Buffer {} pushed", idx);
                     cuda_contexts.push(Some(context));
                 }
             }
+            eprintln!("[DEBUG] setup_with_qp_type: All buffers allocated");
 
             // Fill buffer1 with test data
+            eprintln!("[DEBUG] setup_with_qp_type: About to fill buffer with test data");
             if parsed_accel1.0 == "cuda" {
                 let mut temp_buffer = vec![0u8; buffer_size].into_boxed_slice();
                 for (i, val) in temp_buffer.iter_mut().enumerate() {
                     *val = (i % 256) as u8;
                 }
                 unsafe {
+                    eprintln!("[DEBUG] setup_with_qp_type: About to set HIP context for memcpy");
                     // Use the HIP context that was created for the first buffer
                     cu_check!(cuda_sys::hipCtxSetCurrent(
                         cuda_contexts[0].expect("No HIP context found")
                     ));
 
+                    eprintln!("[DEBUG] setup_with_qp_type: About to hipMemcpyHtoD");
                     cu_check!(cuda_sys::hipMemcpyHtoD(
-                        buf_vec[0].ptr,
-                        temp_buffer.as_ptr() as *const std::ffi::c_void,
+                        buf_vec[0].ptr as *mut std::ffi::c_void,
+                        temp_buffer.as_ptr() as *mut std::ffi::c_void,
                         temp_buffer.len()
                     ));
+                    eprintln!("[DEBUG] setup_with_qp_type: hipMemcpyHtoD done");
                 }
             } else {
                 unsafe {
@@ -476,12 +538,15 @@ pub mod test_utils {
                     }
                 }
             }
+            eprintln!("[DEBUG] setup_with_qp_type: About to get actors");
             let actor_1 = actor_mesh_1.get(0).unwrap();
             let actor_2 = actor_mesh_2.get(0).unwrap();
 
+            eprintln!("[DEBUG] setup_with_qp_type: About to request_buffer from actor_1");
             let rdma_handle_1 = actor_1
                 .request_buffer(proc_mesh_1.client(), buf_vec[0].ptr as usize, buffer_size)
                 .await?;
+            eprintln!("[DEBUG] setup_with_qp_type: rdma_handle_1 obtained");
             let rdma_handle_2 = actor_2
                 .request_buffer(proc_mesh_2.client(), buf_vec[1].ptr as usize, buffer_size)
                 .await?;
@@ -515,14 +580,20 @@ pub mod test_utils {
                     cu_check!(cuda_sys::hipCtxSetCurrent(
                         self.cuda_context_1.expect("No HIP context found")
                     ));
-                    cu_check!(cuda_sys::hipMemUnmap(
-                        self.buffer_1.ptr as cuda_sys::hipDeviceptr_t,
-                        self.buffer_1.len
-                    ));
-                    cu_check!(cuda_sys::hipMemAddressFree(
-                        self.buffer_1.ptr as cuda_sys::hipDeviceptr_t,
-                        self.buffer_1.len
-                    ));
+                    if self.buffer_1.is_hip_malloc {
+                        // hipMalloc allocation - use hipFree
+                        cu_check!(cuda_sys::hipFree(self.buffer_1.ptr as *mut std::ffi::c_void));
+                    } else {
+                        // VMM allocation - use hipMemUnmap + hipMemAddressFree
+                        cu_check!(cuda_sys::hipMemUnmap(
+                            self.buffer_1.ptr as cuda_sys::hipDeviceptr_t,
+                            self.buffer_1.len
+                        ));
+                        cu_check!(cuda_sys::hipMemAddressFree(
+                            self.buffer_1.ptr as cuda_sys::hipDeviceptr_t,
+                            self.buffer_1.len
+                        ));
+                    }
                 }
             }
             if self.cuda_context_2.is_some() {
@@ -530,14 +601,20 @@ pub mod test_utils {
                     cu_check!(cuda_sys::hipCtxSetCurrent(
                         self.cuda_context_2.expect("No HIP context found")
                     ));
-                    cu_check!(cuda_sys::hipMemUnmap(
-                        self.buffer_2.ptr as cuda_sys::hipDeviceptr_t,
-                        self.buffer_2.len
-                    ));
-                    cu_check!(cuda_sys::hipMemAddressFree(
-                        self.buffer_2.ptr as cuda_sys::hipDeviceptr_t,
-                        self.buffer_2.len
-                    ));
+                    if self.buffer_2.is_hip_malloc {
+                        // hipMalloc allocation - use hipFree
+                        cu_check!(cuda_sys::hipFree(self.buffer_2.ptr as *mut std::ffi::c_void));
+                    } else {
+                        // VMM allocation - use hipMemUnmap + hipMemAddressFree
+                        cu_check!(cuda_sys::hipMemUnmap(
+                            self.buffer_2.ptr as cuda_sys::hipDeviceptr_t,
+                            self.buffer_2.len
+                        ));
+                        cu_check!(cuda_sys::hipMemAddressFree(
+                            self.buffer_2.ptr as cuda_sys::hipDeviceptr_t,
+                            self.buffer_2.len
+                        ));
+                    }
                 }
             }
             Ok(())
@@ -590,12 +667,14 @@ pub mod test_utils {
                         ptr: temp_buffer.as_mut_ptr() as u64,
                         len: size,
                         cpu_ref: Some(temp_buffer),
+                        is_hip_malloc: false,
                     });
                 } else {
                     buf_vec.push(Buffer {
                         ptr: virtual_addr,
                         len: size,
                         cpu_ref: None,
+                        is_hip_malloc: false,  // These are for setup(), not the main Standard QP tests
                     });
                 }
             }

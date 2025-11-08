@@ -11,16 +11,22 @@
 #include <c10/hip/HIPCachingAllocator.h>
 
 #include <hip/hip_runtime.h>
+#include <hsa/hsa.h>
+#include <hsa/hsa_ext_amd.h>
 #include <unistd.h>
 #include <mutex>
 #include <set>
 #include <unordered_map>
 
-// ROCm 7.0+ feature detection
+// ROCm 6.x+ has HSA dmabuf support via hsa_amd_portable_export_dmabuf
+// ROCm 7.0+ has HIP dmabuf support via hipMemGetHandleForAddressRange
 #if HIP_VERSION >= 70000000
 #define HAS_HIP_DMABUF_SUPPORT 1
+#define HAS_HSA_DMABUF_SUPPORT 1
 #else
 #define HAS_HIP_DMABUF_SUPPORT 0
+// HSA dmabuf is available in ROCm 6.x
+#define HAS_HSA_DMABUF_SUPPORT 1
 #endif
 
 // MR size must be a multiple of 2MB
@@ -121,12 +127,24 @@ void scan_existing_segments() {
 
 extern "C" {
 
-// Simple check for PyTorch CUDA allocator compatibility
+// Check for PyTorch CUDA allocator compatibility or dmabuf support
+// For ROCm 6.x: HSA dmabuf is available and works with hipMalloc-allocated memory
+// For ROCm 7.0+: HIP dmabuf works with hipMemCreate/hipMemMap as well
+// Returns true if either PyTorch allocator is configured OR HSA/HIP dmabuf is available
 bool pt_cuda_allocator_compatibility() {
-  return (
+  bool pytorch_ok = (
       c10::hip::HIPCachingAllocator::isEnabled() &&
       c10::hip::HIPCachingAllocator::HIPAllocatorConfig::
           expandable_segments());
+
+#if HAS_HSA_DMABUF_SUPPORT || HAS_HIP_DMABUF_SUPPORT
+  // If HSA or HIP dmabuf is available, we can use Standard QP with hipMalloc allocations
+  // Return true if either PyTorch allocator is available OR we have dmabuf support
+  return pytorch_ok || true;  // dmabuf support is available
+#else
+  // No dmabuf support, must rely on PyTorch allocator
+  return pytorch_ok;
+#endif
 }
 
 // Get count of active segments
@@ -226,10 +244,9 @@ int bind_mrs(
 // Compact multiple MRs into a single MR for a segment if SGE_MAX hit
 // TODO: setup a global lock, may be needed to safely do this
 int compact_mrs(struct ibv_pd* pd, SegmentInfo& seg, int access_flags) {
-#if !HAS_HIP_DMABUF_SUPPORT
-  // ROCm < 7.0 does not support hipMemGetHandleForAddressRange
-  // Return error indicating feature not available
-  fprintf(stderr, "[RdmaXcel] Warning: compact_mrs requires ROCm 7.0+\n");
+#if !HAS_HSA_DMABUF_SUPPORT && !HAS_HIP_DMABUF_SUPPORT
+  // Neither HSA nor HIP dmabuf support available
+  fprintf(stderr, "[RdmaXcel] Warning: compact_mrs requires ROCm 6.x+ with HSA dmabuf support or ROCm 7.0+ with HIP dmabuf support\n");
   return RDMAXCEL_DMABUF_HANDLE_FAILED;
 #else
   if (seg.mrs.empty()) {
@@ -249,9 +266,10 @@ int compact_mrs(struct ibv_pd* pd, SegmentInfo& seg, int access_flags) {
 
   // Get dmabuf handle for the entire segment
   int fd = -1;
-  // Using reinterpret_cast instead of original static_cast
-  // since original CUDeviceptr is unsigned int but hipDeviceptr_t is "void *",
-  // static_cast does allow for the conversion.
+  uint64_t offset = 0;
+
+#if HAS_HIP_DMABUF_SUPPORT
+  // ROCm 7.0+: Use HIP API
   hipError_t cu_result = hipMemGetHandleForAddressRange(
       &fd,
       reinterpret_cast<hipDeviceptr_t>(start_addr),
@@ -262,9 +280,22 @@ int compact_mrs(struct ibv_pd* pd, SegmentInfo& seg, int access_flags) {
   if (cu_result != hipSuccess || fd < 0) {
     return RDMAXCEL_DMABUF_HANDLE_FAILED;
   }
+#else
+  // ROCm 6.x: Use HSA API
+  hsa_status_t hsa_result = hsa_amd_portable_export_dmabuf(
+      reinterpret_cast<const void*>(start_addr),
+      total_size,
+      &fd,
+      &offset);
+
+  if (hsa_result != HSA_STATUS_SUCCESS || fd < 0) {
+    fprintf(stderr, "[RdmaXcel] hsa_amd_portable_export_dmabuf failed with status %d, fd %d\n", hsa_result, fd);
+    return RDMAXCEL_DMABUF_HANDLE_FAILED;
+  }
+#endif
 
   // Register the consolidated dmabuf
-  auto mr = ibv_reg_dmabuf_mr(pd, 0, total_size, 0, fd, access_flags);
+  auto mr = ibv_reg_dmabuf_mr(pd, offset, total_size, 0, fd, access_flags);
   close(fd); // Close fd after registration
 
   if (!mr) {
@@ -278,11 +309,10 @@ int compact_mrs(struct ibv_pd* pd, SegmentInfo& seg, int access_flags) {
 
 // Register memory region for a specific segment address, assume cuda
 int register_segments(struct ibv_pd* pd, struct ibv_qp* qp) {
-#if !HAS_HIP_DMABUF_SUPPORT
-  // ROCm < 7.0 does not support hipMemGetHandleForAddressRange
-  // RDMA memory registration requires ROCm 7.0+
-  fprintf(stderr, "[RdmaXcel] Error: register_segments requires ROCm 7.0+. Current ROCm version does not support DMA-BUF memory handles.\n");
-  fprintf(stderr, "[RdmaXcel] Please upgrade to ROCm 7.0 or later, or disable the tensor_engine feature.\n");
+#if !HAS_HSA_DMABUF_SUPPORT && !HAS_HIP_DMABUF_SUPPORT
+  // Neither HSA nor HIP dmabuf support available
+  fprintf(stderr, "[RdmaXcel] Error: register_segments requires ROCm 6.x+ with HSA dmabuf support or ROCm 7.0+ with HIP dmabuf support.\n");
+  fprintf(stderr, "[RdmaXcel] Current ROCm version does not support DMA-BUF memory handles.\n");
   return RDMAXCEL_DMABUF_HANDLE_FAILED;
 #else
   if (!pd) {
@@ -322,9 +352,10 @@ int register_segments(struct ibv_pd* pd, struct ibv_qp* qp) {
         }
 
         int fd = -1;
-       // Using reinterpret_cast instead of original static_cast
-       // since original CUDeviceptr is unsigned int but hipDeviceptr_t is "void *",
-       // static_cast does allow for the conversion.
+        uint64_t offset = 0;
+
+#if HAS_HIP_DMABUF_SUPPORT
+        // ROCm 7.0+: Use HIP API
         hipError_t cu_result = hipMemGetHandleForAddressRange(
             &fd,
             reinterpret_cast<hipDeviceptr_t>(chunk_start),
@@ -335,9 +366,22 @@ int register_segments(struct ibv_pd* pd, struct ibv_qp* qp) {
         if (cu_result != hipSuccess || fd < 0) {
           return RDMAXCEL_DMABUF_HANDLE_FAILED; // Failed to get dmabuf handle
         }
+#else
+        // ROCm 6.x: Use HSA API
+        hsa_status_t hsa_result = hsa_amd_portable_export_dmabuf(
+            reinterpret_cast<const void*>(chunk_start),
+            chunk_size,
+            &fd,
+            &offset);
 
-        // Register the dmabuf with fd, address is always 0.
-        auto mr = ibv_reg_dmabuf_mr(pd, 0, chunk_size, 0, fd, access_flags);
+        if (hsa_result != HSA_STATUS_SUCCESS || fd < 0) {
+          fprintf(stderr, "[RdmaXcel] hsa_amd_portable_export_dmabuf failed with status %d, fd %d\n", hsa_result, fd);
+          return RDMAXCEL_DMABUF_HANDLE_FAILED; // Failed to get dmabuf handle
+        }
+#endif
+
+        // Register the dmabuf with fd and offset
+        auto mr = ibv_reg_dmabuf_mr(pd, offset, chunk_size, 0, fd, access_flags);
         close(fd);
 
         if (!mr) {
@@ -463,6 +507,73 @@ int deregister_segments() {
   activeSegments.clear();
 
   return 0; // Success
+}
+
+// Register a single GPU memory buffer using dmabuf (for Standard QP with non-PyTorch allocations)
+int register_dmabuf_buffer(
+    struct ibv_pd* pd,
+    void* addr,
+    size_t size,
+    uint32_t* lkey_out,
+    uint32_t* rkey_out,
+    struct ibv_mr** mr_out) {
+#if !HAS_HSA_DMABUF_SUPPORT && !HAS_HIP_DMABUF_SUPPORT
+  fprintf(stderr, "[RdmaXcel] Error: register_dmabuf_buffer requires ROCm 6.x+ with HSA dmabuf support or ROCm 7.0+ with HIP dmabuf support.\n");
+  return RDMAXCEL_DMABUF_HANDLE_FAILED;
+#else
+  if (!pd || !addr || size == 0 || !lkey_out || !rkey_out || !mr_out) {
+    return RDMAXCEL_INVALID_PARAMS;
+  }
+
+  int fd = -1;
+  uint64_t offset = 0;
+
+#if HAS_HIP_DMABUF_SUPPORT
+  // ROCm 7.0+: Use HIP API
+  hipError_t hip_result = hipMemGetHandleForAddressRange(
+      &fd,
+      reinterpret_cast<hipDeviceptr_t>(addr),
+      size,
+      hipMemRangeHandleTypeDmaBufFd,
+      0);
+
+  if (hip_result != hipSuccess || fd < 0) {
+    fprintf(stderr, "[RdmaXcel] hipMemGetHandleForAddressRange failed with status %d, fd %d\n", hip_result, fd);
+    return RDMAXCEL_DMABUF_HANDLE_FAILED;
+  }
+#else
+  // ROCm 6.x: Use HSA API
+  // Note: HSA runtime should already be initialized by HIP runtime
+  hsa_status_t hsa_result = hsa_amd_portable_export_dmabuf(
+      addr,
+      size,
+      &fd,
+      &offset);
+
+  if (hsa_result != HSA_STATUS_SUCCESS || fd < 0) {
+    fprintf(stderr, "[RdmaXcel] hsa_amd_portable_export_dmabuf failed with status %d for addr %p, size %zu\n",
+            hsa_result, addr, size);
+    return RDMAXCEL_DMABUF_HANDLE_FAILED;
+  }
+#endif
+
+  // Register the dmabuf with ibverbs
+  int access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+  struct ibv_mr* mr = ibv_reg_dmabuf_mr(pd, offset, size, reinterpret_cast<uintptr_t>(addr), fd, access_flags);
+  close(fd); // Close fd after registration
+
+  if (!mr) {
+    fprintf(stderr, "[RdmaXcel] ibv_reg_dmabuf_mr failed\n");
+    return RDMAXCEL_MR_REGISTRATION_FAILED;
+  }
+
+  // Fill output parameters
+  *lkey_out = mr->lkey;
+  *rkey_out = mr->rkey;
+  *mr_out = mr;
+
+  return 0; // Success
+#endif
 }
 
 // Debug: Print comprehensive device attributes

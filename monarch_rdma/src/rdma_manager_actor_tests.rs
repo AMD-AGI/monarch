@@ -683,6 +683,17 @@ mod tests {
             println!("Skipping CUDA test in CPU-only mode");
             return Ok(());
         }
+
+        // Skip test for ROCm + Standard QP until ROCm 7.0+ or PyTorch allocator integration
+        // Standard QP requires either PyTorch allocator or DMA-BUF (ROCm 7.0+) for GPU memory
+        // Check if we're using HIP/ROCm by checking if PyTorch allocator is unavailable
+        if !crate::rdma_components::pt_cuda_allocator_compatibility() {
+            println!("Skipping Standard QP + CUDA test (PyTorch allocator not available)");
+            println!("This test requires PyTorch caching allocator with expandable segments");
+            println!("OR ROCm 7.0+ for DMA-BUF support");
+            return Ok(());
+        }
+
         const BSIZE: usize = 16 * 1024 * 1024;
         // Skip test if RDMA devices are not available
         let devices = get_all_devices();
@@ -715,6 +726,17 @@ mod tests {
             println!("Skipping CUDA test in CPU-only mode");
             return Ok(());
         }
+
+        // Skip test for ROCm + Standard QP until ROCm 7.0+ or PyTorch allocator integration
+        // Standard QP requires either PyTorch allocator or DMA-BUF (ROCm 7.0+) for GPU memory
+        // Check if we're using HIP/ROCm by checking if PyTorch allocator is unavailable
+        if !crate::rdma_components::pt_cuda_allocator_compatibility() {
+            println!("Skipping Standard QP + CUDA test (PyTorch allocator not available)");
+            println!("This test requires PyTorch caching allocator with expandable segments");
+            println!("OR ROCm 7.0+ for DMA-BUF support");
+            return Ok(());
+        }
+
         const BSIZE: usize = 16 * 1024 * 1024;
         // Skip test if RDMA devices are not available
         let devices = get_all_devices();

@@ -146,6 +146,17 @@ bool pt_cuda_allocator_compatibility();
 int register_segments(struct ibv_pd* pd, struct ibv_qp* qp);
 int deregister_segments();
 
+// Register a single GPU memory buffer using dmabuf (for Standard QP)
+// Returns 0 on success, negative error code on failure
+// On success, fills in lkey, rkey, and mr_ptr
+int register_dmabuf_buffer(
+    struct ibv_pd* pd,
+    void* addr,
+    size_t size,
+    uint32_t* lkey_out,
+    uint32_t* rkey_out,
+    struct ibv_mr** mr_out);
+
 // CUDA utility functions
 int get_cuda_pci_address_from_ptr(
     hipDeviceptr_t cuda_ptr,

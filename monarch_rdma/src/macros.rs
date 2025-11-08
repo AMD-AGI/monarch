@@ -9,11 +9,10 @@
 #[macro_export]
 macro_rules! cu_check {
     ($result:expr) => {
-        if $result != cuda_sys::CUresult::CUDA_SUCCESS {
-            let mut error_string: *const i8 = std::ptr::null();
-            cuda_sys::cuGetErrorString($result, &mut error_string);
+        if $result != cuda_sys::hipError_t::hipSuccess {
+            let error_string = cuda_sys::hipGetErrorString($result);
             panic!(
-                "cuda failure {}:{} {:?} '{}'",
+                "HIP failure {}:{} {:?} '{}'",
                 file!(),
                 line!(),
                 $result,

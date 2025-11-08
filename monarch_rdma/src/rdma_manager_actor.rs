@@ -424,8 +424,8 @@ impl RdmaManagerActor {
             let mut mr: *mut rdmaxcel_sys::ibv_mr = std::ptr::null_mut();
             let mrv;
 
-            if is_cuda && self.cuda_pt_alloc_enabled() {
-                // Get registered segments and check if our memory range is covered
+            if is_cuda && self.pt_cuda_alloc && self.mlx5dv_enabled {
+                // PyTorch allocator path for MLX5DV QP
                 let mut maybe_mrv = self.find_cuda_segment_for_address(addr, size);
                 // not found, lets re-sync with caching allocator  and retry
                 if maybe_mrv.is_none() {
@@ -451,16 +451,45 @@ impl RdmaManagerActor {
                     ));
                 }
                 mrv = maybe_mrv.unwrap();
-            } else if is_cuda {
-                // DMA-BUF path (requires ROCm 7.0+)
-                // For ROCm 6.4, this path is disabled - we rely on PyTorch allocator registration above
-                return Err(anyhow::anyhow!(
-                    "DMA-BUF registration not available in ROCm 6.4 (addr: 0x{:x}, size: {}). Use PyTorch allocator registration instead.",
-                    addr,
-                    size
-                ));
+            } else if is_cuda && self.pt_cuda_alloc && !self.mlx5dv_enabled {
+                // Standard QP with HSA/HIP dmabuf support
+                let mut lkey: u32 = 0;
+                let mut rkey: u32 = 0;
+                let mut mr_ptr: *mut rdmaxcel_sys::ibv_mr = std::ptr::null_mut();
+
+                let err = rdmaxcel_sys::register_dmabuf_buffer(
+                    domain_pd,
+                    addr as *mut std::ffi::c_void,
+                    size,
+                    &mut lkey as *mut u32,
+                    &mut rkey as *mut u32,
+                    &mut mr_ptr as *mut *mut rdmaxcel_sys::ibv_mr,
+                );
+
+                if err != 0 {
+                    let error_msg = get_rdmaxcel_error_message(err);
+                    return Err(anyhow::anyhow!(
+                        "RdmaXcel register_dmabuf_buffer failed (addr: 0x{:x}, size: {}): {}",
+                        addr,
+                        size,
+                        error_msg
+                    ));
+                }
+
+                mr = mr_ptr;
+                mrv = RdmaMemoryRegionView {
+                    id: self.mrv_id,
+                    virtual_addr: addr,
+                    // For dmabuf MRs, use the original address as rdma_addr
+                    // since ibv_mr->addr may be 0 or the offset for dmabuf registrations
+                    rdma_addr: addr,
+                    size,
+                    lkey,
+                    rkey,
+                };
+                self.mrv_id += 1;
             } else {
-                // CPU memory path
+                // Standard ibverbs path - works for both CPU and GPU memory (with GPU Direct RDMA support)
                 mr = rdmaxcel_sys::ibv_reg_mr(
                     domain_pd,
                     addr as *mut std::ffi::c_void,
@@ -469,7 +498,7 @@ impl RdmaManagerActor {
                 );
 
                 if mr.is_null() {
-                    return Err(anyhow::anyhow!("failed to register standard MR"));
+                    return Err(anyhow::anyhow!("failed to register standard MR (addr: 0x{:x}, size: {})", addr, size));
                 }
 
                 mrv = RdmaMemoryRegionView {

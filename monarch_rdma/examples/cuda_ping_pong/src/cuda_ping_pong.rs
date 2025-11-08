@@ -267,73 +267,73 @@ impl Actor for CudaRdmaActor {
         // Allocate memory on the CUDA device
         // In a real implementation, this would use CUDA APIs to allocate device memory
         // For this example, we'll use a regular Rust allocation as a placeholder
-        // The actual CUDA allocation would be handled by the monarch_rdma library
+        // The actual HIP allocation would be handled by the monarch_rdma library
         unsafe {
-            cu_check!(cuda_sys::cuInit(0));
-            let mut dptr: cuda_sys::CUdeviceptr = std::mem::zeroed();
-            let mut handle: cuda_sys::CUmemGenericAllocationHandle = std::mem::zeroed();
+            cu_check!(cuda_sys::hipInit(0));
+            let mut dptr: *mut std::ffi::c_void = std::ptr::null_mut();
+            let mut handle: cuda_sys::hipMemGenericAllocationHandle_t = std::mem::zeroed();
 
-            let mut device: cuda_sys::CUdevice = std::mem::zeroed();
-            cu_check!(cuda_sys::cuDeviceGet(&mut device, device_id as i32));
+            let mut device: i32 = 0;
+            cu_check!(cuda_sys::hipDeviceGet(&mut device, device_id as i32));
 
-            let mut context: cuda_sys::CUcontext = std::mem::zeroed();
-            cu_check!(cuda_sys::cuCtxCreate_v2(&mut context, 0, device_id as i32));
-            cu_check!(cuda_sys::cuCtxSetCurrent(context));
+            let mut context: cuda_sys::hipCtx_t = std::ptr::null_mut();
+            cu_check!(cuda_sys::hipCtxCreate(&mut context, 0, device));
+            cu_check!(cuda_sys::hipCtxSetCurrent(context));
 
             let mut granularity: usize = 0;
-            let mut prop: cuda_sys::CUmemAllocationProp = std::mem::zeroed();
-            prop.type_ = cuda_sys::CUmemAllocationType::CU_MEM_ALLOCATION_TYPE_PINNED;
-            prop.location.type_ = cuda_sys::CUmemLocationType::CU_MEM_LOCATION_TYPE_DEVICE;
+            let mut prop: cuda_sys::hipMemAllocationProp = std::mem::zeroed();
+            prop.type_ = cuda_sys::hipMemAllocationType::hipMemAllocationTypePinned;
+            prop.location.type_ = cuda_sys::hipMemLocationType::hipMemLocationTypeDevice;
             prop.location.id = device;
             prop.allocFlags.gpuDirectRDMACapable = 1;
-            prop.requestedHandleTypes =
-                cuda_sys::CUmemAllocationHandleType::CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR;
+            prop.requestedHandleType =
+                cuda_sys::hipMemAllocationHandleType::hipMemHandleTypePosixFileDescriptor;
 
-            cu_check!(cuda_sys::cuMemGetAllocationGranularity(
+            cu_check!(cuda_sys::hipMemGetAllocationGranularity(
                 &mut granularity as *mut usize,
                 &prop,
-                cuda_sys::CUmemAllocationGranularity_flags::CU_MEM_ALLOC_GRANULARITY_MINIMUM,
+                cuda_sys::hipMemAllocationGranularity_flags::hipMemAllocationGranularityMinimum,
             ));
 
             // ensure our size is aligned
             let padded_size: usize = ((buffer_size - 1) / granularity + 1) * granularity;
             assert!(padded_size == buffer_size);
 
-            cu_check!(cuda_sys::cuMemCreate(
-                &mut handle as *mut cuda_sys::CUmemGenericAllocationHandle,
+            cu_check!(cuda_sys::hipMemCreate(
+                &mut handle as *mut cuda_sys::hipMemGenericAllocationHandle_t,
                 padded_size,
                 &prop,
                 0
             ));
             // reserve and map the memory
-            cu_check!(cuda_sys::cuMemAddressReserve(
-                &mut dptr as *mut cuda_sys::CUdeviceptr,
+            cu_check!(cuda_sys::hipMemAddressReserve(
+                &mut dptr,
                 padded_size,
                 0,
-                0,
+                std::ptr::null_mut(),
                 0,
             ));
             assert!(dptr as usize % granularity == 0);
             assert!(padded_size % granularity == 0);
 
             // fails if a add cu_check macro; but passes if we don't
-            let err = cuda_sys::cuMemMap(
-                dptr as cuda_sys::CUdeviceptr,
+            let err = cuda_sys::hipMemMap(
+                dptr,
                 padded_size,
                 0,
-                handle as cuda_sys::CUmemGenericAllocationHandle,
+                handle as cuda_sys::hipMemGenericAllocationHandle_t,
                 0,
             );
-            if err != cuda_sys::CUresult::CUDA_SUCCESS {
+            if err != cuda_sys::hipError_t::hipSuccess {
                 panic!("failed reserving and mapping memory {:?}", err);
             }
 
             // set access
-            let mut access_desc: cuda_sys::CUmemAccessDesc = std::mem::zeroed();
-            access_desc.location.type_ = cuda_sys::CUmemLocationType::CU_MEM_LOCATION_TYPE_DEVICE;
+            let mut access_desc: cuda_sys::hipMemAccessDesc = std::mem::zeroed();
+            access_desc.location.type_ = cuda_sys::hipMemLocationType::hipMemLocationTypeDevice;
             access_desc.location.id = device;
-            access_desc.flags = cuda_sys::CUmemAccess_flags::CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
-            cu_check!(cuda_sys::cuMemSetAccess(dptr, padded_size, &access_desc, 1));
+            access_desc.flags = cuda_sys::hipMemAccessFlags::hipMemAccessFlagsProtReadWrite;
+            cu_check!(cuda_sys::hipMemSetAccess(dptr, padded_size, &access_desc, 1));
             Ok(Self {
                 device_id,
                 cpu_buffer,
@@ -385,17 +385,19 @@ impl Handler<InitializeBuffer> for CudaRdmaActor {
         self.cpu_buffer.fill(value);
 
         unsafe {
-            let mut context: cuda_sys::CUcontext = std::mem::zeroed();
-            cu_check!(cuda_sys::cuCtxCreate_v2(
+            let mut context: cuda_sys::hipCtx_t = std::ptr::null_mut();
+            let mut device: i32 = 0;
+            cu_check!(cuda_sys::hipDeviceGet(&mut device, self.device_id as i32));
+            cu_check!(cuda_sys::hipCtxCreate(
                 &mut context,
                 0,
-                self.device_id as i32
+                device
             ));
-            cu_check!(cuda_sys::cuCtxSetCurrent(context));
-            cuda_sys::cudaDeviceSynchronize();
-            cu_check!(cuda_sys::cuMemcpyHtoD_v2(
-                self.cu_ptr as u64,
-                self.cpu_buffer.as_ptr() as *const std::ffi::c_void,
+            cu_check!(cuda_sys::hipCtxSetCurrent(context));
+            cuda_sys::hipDeviceSynchronize();
+            cu_check!(cuda_sys::hipMemcpyHtoD(
+                self.cu_ptr as *mut std::ffi::c_void,
+                self.cpu_buffer.as_ptr() as *mut std::ffi::c_void,
                 self.cpu_buffer.len()
             ));
         }
@@ -459,13 +461,15 @@ impl Handler<PerformPingPong> for CudaRdmaActor {
 
         validate_execution_context().await?;
         unsafe {
-            let mut context: cuda_sys::CUcontext = std::mem::zeroed();
-            cu_check!(cuda_sys::cuCtxCreate_v2(
+            let mut context: cuda_sys::hipCtx_t = std::ptr::null_mut();
+            let mut device: i32 = 0;
+            cu_check!(cuda_sys::hipDeviceGet(&mut device, self.device_id as i32));
+            cu_check!(cuda_sys::hipCtxCreate(
                 &mut context,
                 0,
-                self.device_id as i32
+                device
             ));
-            cu_check!(cuda_sys::cuCtxSetCurrent(context));
+            cu_check!(cuda_sys::hipCtxSetCurrent(context));
         }
         let qp = self
             .rdma_manager
@@ -532,17 +536,19 @@ impl Handler<VerifyBuffer> for CudaRdmaActor {
         VerifyBuffer(expected_values, reply): VerifyBuffer,
     ) -> Result<(), anyhow::Error> {
         unsafe {
-            let mut context: cuda_sys::CUcontext = std::mem::zeroed();
-            cu_check!(cuda_sys::cuCtxCreate_v2(
+            let mut context: cuda_sys::hipCtx_t = std::ptr::null_mut();
+            let mut device: i32 = 0;
+            cu_check!(cuda_sys::hipDeviceGet(&mut device, self.device_id as i32));
+            cu_check!(cuda_sys::hipCtxCreate(
                 &mut context,
                 0,
-                self.device_id as i32
+                device
             ));
-            cu_check!(cuda_sys::cuCtxSetCurrent(context));
-            cuda_sys::cudaDeviceSynchronize();
-            cu_check!(cuda_sys::cuMemcpyDtoH_v2(
+            cu_check!(cuda_sys::hipCtxSetCurrent(context));
+            cuda_sys::hipDeviceSynchronize();
+            cu_check!(cuda_sys::hipMemcpyDtoH(
                 self.cpu_buffer.as_mut_ptr() as *mut std::ffi::c_void,
-                self.cu_ptr as cuda_sys::CUdeviceptr,
+                self.cu_ptr as cuda_sys::hipDeviceptr_t,
                 self.cpu_buffer.len(),
             ));
         }
