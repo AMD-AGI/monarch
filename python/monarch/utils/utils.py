@@ -40,14 +40,24 @@ class _TorchDistributedInitActor(Actor):
     @endpoint
     def setup_env(self, master_addr: str, master_port: int) -> None:
         cr = current_rank()
-        # Assume last dimension is the local rank.
+        # Get the actual coordinate for the last dimension (GPUs)
+        # This works correctly with multi-dimensional extents like ["hosts", "gpus"]
         last_label = cr.extent.labels[-1]
         local_world_size = cr.size(last_label)
         world_size = cr.extent.nelements
         global_rank = cr.rank
-        local_rank = min(world_size, global_rank % local_world_size)
-        group_rank = global_rank // local_world_size
-        group_world_size = (world_size + local_world_size - 1) // local_world_size
+
+        # Use the coordinate along the last dimension as local_rank
+        # This correctly handles layouts like ["hosts", "gpus"] where
+        # the GPU index is the actual local rank on each host
+        # Point behaves like a dictionary, so we can access it with []
+        local_rank = cr[last_label]
+
+        # Calculate group rank based on the first dimension (hosts)
+        first_label = cr.extent.labels[0]
+        group_rank = cr[first_label] if len(cr.extent.labels) > 1 else 0
+        group_world_size = cr.size(first_label) if len(cr.extent.labels) > 1 else 1
+
         env = {
             "MASTER_ADDR": master_addr,
             "MASTER_PORT": str(master_port),
