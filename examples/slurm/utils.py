@@ -12,9 +12,11 @@ import os
 import pathlib
 
 from monarch._rust_bindings.monarch_hyperactor.alloc import AllocConstraints, AllocSpec
+from monarch._rust_bindings.monarch_hyperactor.shape import Extent
 from monarch._src.actor.allocator import RemoteAllocator, TorchXRemoteAllocInitializer
+from monarch._src.actor.host_mesh import _bootstrap_cmd
 
-from monarch.actor import ProcMesh
+from monarch.actor import ProcMesh, HostMesh
 from monarch.tools import commands
 from monarch.tools.components import hyperactor
 from monarch.tools.config import Config
@@ -84,9 +86,21 @@ async def create_proc_mesh(num_hosts, appdef, server_info):
         world_id="foo",
         initializer=TorchXRemoteAllocInitializer(server_info.server_handle),
     )
-    alloc = await allocator.allocate(
-        AllocSpec(AllocConstraints(), hosts=num_hosts, gpus=num_gpus_per_host)
+
+    # Use v1 API with RemoteAllocator
+    # Note: RemoteAllocator requires at least 2 dimensions (hosts and sub-host like GPUs)
+    host_mesh = HostMesh.allocate_nonblocking(
+        "hosts",
+        Extent(["hosts", "gpus"], [num_hosts, num_gpus_per_host]),
+        allocator,
+        bootstrap_cmd=_bootstrap_cmd(),
     )
 
-    proc_mesh = await ProcMesh.from_alloc(alloc)
+    # Wait for host_mesh to be initialized
+    await host_mesh.initialized
+
+    # Convert HostMesh to ProcMesh by calling spawn_procs with empty dict
+    # The processes are already spawned by RemoteAllocator, this just wraps them
+    proc_mesh = host_mesh.spawn_procs()
+
     return proc_mesh
