@@ -150,6 +150,7 @@ def create_slurm_job(
     slurm_job_args = {
         "meshes": {mesh_name: num_nodes}, 
         "job_name": default_job_name,
+        "gpus_per_node": gpus_per_node,
         "time_limit": time_limit,
     }
     if python_exe:
@@ -161,6 +162,22 @@ def create_slurm_job(
         # ... additional args can be passed here
     )
 
+
+async def cleanup_job(job: JobTrait) -> None:
+    """
+    This function cancels the SLURM job, releasing all reserved nodes back
+    to the cluster for other users.
+
+    Args:
+        job: A JobTrait, like the one returned from create_slurm_job()
+
+    Note:
+        The job will also terminate automatically when the configured TTL
+        is exceeded, but explicit cleanup is recommended for long-running
+        notebooks or scripts.
+    """
+    job.kill()
+    logger.info("Job terminated successfully")
 
 
 async def main():
