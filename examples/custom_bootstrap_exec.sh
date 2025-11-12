@@ -8,8 +8,8 @@ export NCCL_IB_HCA=${NCCL_IB_HCA:="bnxt_re0,bnxt_re1,bnxt_re2,bnxt_re3,bnxt_re4,
 # Use hostname to identify the container for this node
 CONTAINER_NAME="monarch_node_$(hostname)_${USER}"
 
-echo "arguments 1: $1"
-echo "arguments 2: $2"
+# echo "arguments 1: $1"
+# echo "arguments 2: $2"
 echo "[P${HYPERACTOR_MESH_INDEX}] Starting on $(hostname), container: ${CONTAINER_NAME}"
 
 
@@ -29,7 +29,7 @@ fi
 echo "[P${HYPERACTOR_MESH_INDEX}] Executing in container"
 
 
-echo "bash command: LD_LIBRARY_PATH=/opt/ompi/lib:/opt/rocm/lib:/usr/local/lib::/opt/rocm/lib/:/usr/lib/x86_64-linux-gnu/ python $1 \"$2\" "
+#echo "bash command: LD_LIBRARY_PATH=/opt/ompi/lib:/opt/rocm/lib:/usr/local/lib::/opt/rocm/lib/:/usr/lib/x86_64-linux-gnu/ python $1 \"$2\" "
 
 
 # No need to activate external conda enviornment if we use Docker which already has Monarch installed
