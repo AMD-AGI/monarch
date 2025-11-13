@@ -6,11 +6,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-//! Build utilities shared across monarch *-sys crates
-//!
-//! This module provides common functionality for Python environment discovery
-//! and CUDA installation detection used by various build scripts.
-
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;
@@ -313,8 +308,12 @@ pub fn find_rocm_home() -> Option<String> {
     if rocm_home.is_none() {
         // Guess #2: Find hipcc in PATH
         if let Ok(hipcc_path) = which("hipcc") {
+            // --- FIX: Resolve symlinks before getting parent ---
+            let canonical_hipcc_path =
+                std::fs::canonicalize(&hipcc_path).unwrap_or(hipcc_path);
+
             // Get parent directory twice (hipcc is in ROCM_HOME/bin)
-            if let Some(rocm_dir) = hipcc_path.parent().and_then(|p| p.parent()) {
+            if let Some(rocm_dir) = canonical_hipcc_path.parent().and_then(|p| p.parent()) {
                 rocm_home = Some(rocm_dir.to_string_lossy().into_owned());
             }
         } else {

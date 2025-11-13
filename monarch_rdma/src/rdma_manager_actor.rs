@@ -29,10 +29,6 @@
 //! See test examples: `test_rdma_write_loopback` and `test_rdma_read_loopback`.
 use std::collections::HashMap;
 
-// Import the conditionally re-exported sys crates
-use crate::cuda_sys;
-use crate::rdmaxcel_sys;
-
 use async_trait::async_trait;
 use hyperactor::Actor;
 use hyperactor::ActorId;
@@ -68,7 +64,7 @@ pub enum QueuePairState {
 /// Helper function to get detailed error messages from RDMAXCEL error codes
 pub fn get_rdmaxcel_error_message(error_code: i32) -> String {
     unsafe {
-        let c_str = rdmaxcel_sys::rdmaxcel_error_string(error_code);
+        let c_str = rdmaxcel_sys_hip::rdmaxcel_error_string(error_code);
         std::ffi::CStr::from_ptr(c_str)
             .to_string_lossy()
             .into_owned()
@@ -172,7 +168,7 @@ impl Drop for RdmaManagerActor {
         fn destroy_queue_pair(qp: &RdmaQueuePair, context: &str) {
             unsafe {
                 if qp.qp != 0 {
-                    let result = rdmaxcel_sys::ibv_destroy_qp(qp.qp as *mut rdmaxcel_sys::ibv_qp);
+                    let result = rdmaxcel_sys_hip::ibv_destroy_qp(qp.qp as *mut rdmaxcel_sys_hip::ibv_qp);
                     if result != 0 {
                         tracing::debug!(
                             "ibv_destroy_qp returned {} for {} (may be busy during shutdown)",
@@ -183,7 +179,7 @@ impl Drop for RdmaManagerActor {
                 }
                 if qp.send_cq != 0 {
                     let result =
-                        rdmaxcel_sys::ibv_destroy_cq(qp.send_cq as *mut rdmaxcel_sys::ibv_cq);
+                        rdmaxcel_sys_hip::ibv_destroy_cq(qp.send_cq as *mut rdmaxcel_sys_hip::ibv_cq);
                     if result != 0 {
                         tracing::debug!(
                             "ibv_destroy_cq (send) returned {} for {} (may be busy during shutdown)",
@@ -194,7 +190,7 @@ impl Drop for RdmaManagerActor {
                 }
                 if qp.recv_cq != 0 {
                     let result =
-                        rdmaxcel_sys::ibv_destroy_cq(qp.recv_cq as *mut rdmaxcel_sys::ibv_cq);
+                        rdmaxcel_sys_hip::ibv_destroy_cq(qp.recv_cq as *mut rdmaxcel_sys_hip::ibv_cq);
                     if result != 0 {
                         tracing::debug!(
                             "ibv_destroy_cq (recv) returned {} for {} (may be busy during shutdown)",
@@ -239,7 +235,7 @@ impl Drop for RdmaManagerActor {
         for (id, mr_ptr) in self.mr_map.drain() {
             if mr_ptr != 0 {
                 unsafe {
-                    let result = rdmaxcel_sys::ibv_dereg_mr(mr_ptr as *mut rdmaxcel_sys::ibv_mr);
+                    let result = rdmaxcel_sys_hip::ibv_dereg_mr(mr_ptr as *mut rdmaxcel_sys_hip::ibv_mr);
                     if result != 0 {
                         tracing::error!(
                             "Failed to deregister MR with id {}: error code {}",
@@ -254,7 +250,7 @@ impl Drop for RdmaManagerActor {
         // 4. Deregister all CUDA segments (if using PyTorch CUDA allocator)
         if self.pt_cuda_alloc {
             unsafe {
-                let result = rdmaxcel_sys::deregister_segments();
+                let result = rdmaxcel_sys_hip::deregister_segments();
                 if result != 0 {
                     let error_msg = get_rdmaxcel_error_message(result);
                     tracing::error!(
@@ -274,10 +270,10 @@ impl RdmaManagerActor {
         &mut self,
         device_name: &str,
         rdma_device: &crate::ibverbs_primitives::RdmaDevice,
-    ) -> Result<(*mut rdmaxcel_sys::ibv_pd, *mut rdmaxcel_sys::ibv_qp), anyhow::Error> {
+    ) -> Result<(*mut rdmaxcel_sys_hip::ibv_pd, *mut rdmaxcel_sys_hip::ibv_qp), anyhow::Error> {
         // Check if we already have a domain for this device
         if let Some((domain, qp)) = self.device_domains.get(device_name) {
-            return Ok((domain.pd, qp.qp as *mut rdmaxcel_sys::ibv_qp));
+            return Ok((domain.pd, qp.qp as *mut rdmaxcel_sys_hip::ibv_qp));
         }
 
         // Create new domain for this device
@@ -318,7 +314,7 @@ impl RdmaManagerActor {
 
         // Store PD and QP pointers before inserting
         let pd = domain.pd;
-        let qp = loopback_qp.qp as *mut rdmaxcel_sys::ibv_qp;
+        let qp = loopback_qp.qp as *mut rdmaxcel_sys_hip::ibv_qp;
 
         // Store the domain and QP
         self.device_domains
@@ -362,20 +358,20 @@ impl RdmaManagerActor {
     ) -> Result<(RdmaMemoryRegionView, String), anyhow::Error> {
         unsafe {
             let mut mem_type: i32 = 0;
-            let ptr = addr as cuda_sys::CUdeviceptr;
-            let err = cuda_sys::cuPointerGetAttribute(
+            let ptr = addr as hip_sys::hipDeviceptr_t;
+            let err = hip_sys::hipPointerGetAttribute(
                 &mut mem_type as *mut _ as *mut std::ffi::c_void,
-                cuda_sys::CUpointer_attribute_enum::CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                hip_sys::hipPointer_attribute::HIP_POINTER_ATTRIBUTE_MEMORY_TYPE,
                 ptr,
             );
-            let is_cuda = err == cuda_sys::CUresult::CUDA_SUCCESS;
+            let is_cuda = err == hip_sys::hipError_t::hipSuccess;
 
             let mut selected_rdma_device = None;
 
             if is_cuda {
                 // Use rdmaxcel utility to get PCI address from CUDA pointer
                 let mut pci_addr_buf = [0i8; 16]; // Enough space for "ffff:ff:ff.0\0"
-                let err = rdmaxcel_sys::get_cuda_pci_address_from_ptr(
+                let err = rdmaxcel_sys_hip::get_cuda_pci_address_from_ptr(
                     addr as u64,
                     pci_addr_buf.as_mut_ptr(),
                     pci_addr_buf.len(),
@@ -416,12 +412,12 @@ impl RdmaManagerActor {
             let (domain_pd, loopback_qp_ptr) =
                 self.get_or_create_device_domain(&device_name, &rdma_device)?;
 
-            let access = rdmaxcel_sys::ibv_access_flags::IBV_ACCESS_LOCAL_WRITE
-                | rdmaxcel_sys::ibv_access_flags::IBV_ACCESS_REMOTE_WRITE
-                | rdmaxcel_sys::ibv_access_flags::IBV_ACCESS_REMOTE_READ
-                | rdmaxcel_sys::ibv_access_flags::IBV_ACCESS_REMOTE_ATOMIC;
+            let access = rdmaxcel_sys_hip::ibv_access_flags::IBV_ACCESS_LOCAL_WRITE
+                | rdmaxcel_sys_hip::ibv_access_flags::IBV_ACCESS_REMOTE_WRITE
+                | rdmaxcel_sys_hip::ibv_access_flags::IBV_ACCESS_REMOTE_READ
+                | rdmaxcel_sys_hip::ibv_access_flags::IBV_ACCESS_REMOTE_ATOMIC;
 
-            let mut mr: *mut rdmaxcel_sys::ibv_mr = std::ptr::null_mut();
+            let mut mr: *mut rdmaxcel_sys_hip::ibv_mr = std::ptr::null_mut();
             let mrv;
 
             // Copy pt_cuda_alloc to avoid borrowing issues
@@ -432,7 +428,7 @@ impl RdmaManagerActor {
                 let mut maybe_mrv = self.find_cuda_segment_for_address(addr, size);
                 // not found, lets re-sync with caching allocator  and retry
                 if maybe_mrv.is_none() {
-                    let err = rdmaxcel_sys::register_segments(domain_pd, loopback_qp_ptr);
+                    let err = rdmaxcel_sys_hip::register_segments(domain_pd, loopback_qp_ptr);
                     if err != 0 {
                         let error_msg = get_rdmaxcel_error_message(err);
                         return Err(anyhow::anyhow!(
@@ -456,14 +452,14 @@ impl RdmaManagerActor {
                 mrv = maybe_mrv.unwrap();
             } else if is_cuda {
                 let mut fd: i32 = -1;
-                cuda_sys::cuMemGetHandleForAddressRange(
+                hip_sys::hipMemGetHandleForAddressRange(
                     &mut fd as *mut i32 as *mut std::ffi::c_void,
-                    addr as cuda_sys::CUdeviceptr,
+                    addr as hip_sys::hipDeviceptr_t,
                     size,
-                    cuda_sys::CUmemRangeHandleType::CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD,
+                    hip_sys::hipMemRangeHandleType::hipMemRangeHandleTypeDmaBufFd,
                     0,
                 );
-                mr = rdmaxcel_sys::ibv_reg_dmabuf_mr(domain_pd, 0, size, 0, fd, access.0 as i32);
+                mr = rdmaxcel_sys_hip::ibv_reg_dmabuf_mr(domain_pd, 0, size, 0, fd, access.0 as i32);
                 if mr.is_null() {
                     return Err(anyhow::anyhow!("Failed to register dmabuf MR"));
                 }
@@ -478,7 +474,7 @@ impl RdmaManagerActor {
                 self.mrv_id += 1;
             } else {
                 // CPU memory path
-                mr = rdmaxcel_sys::ibv_reg_mr(
+                mr = rdmaxcel_sys_hip::ibv_reg_mr(
                     domain_pd,
                     addr as *mut std::ffi::c_void,
                     size,
@@ -508,7 +504,7 @@ impl RdmaManagerActor {
         if let Some(mr_ptr) = self.mr_map.remove(&id) {
             if mr_ptr != 0 {
                 unsafe {
-                    rdmaxcel_sys::ibv_dereg_mr(mr_ptr as *mut rdmaxcel_sys::ibv_mr);
+                    rdmaxcel_sys_hip::ibv_dereg_mr(mr_ptr as *mut rdmaxcel_sys_hip::ibv_mr);
                 }
             }
         }

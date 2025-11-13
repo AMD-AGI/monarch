@@ -50,10 +50,6 @@ use std::result::Result;
 use std::thread::sleep;
 use std::time::Duration;
 
-// Import the conditionally re-exported sys crates
-use crate::cuda_sys;
-use crate::rdmaxcel_sys;
-
 use hyperactor::ActorRef;
 use hyperactor::Named;
 use hyperactor::clock::Clock;
@@ -91,7 +87,7 @@ impl DoorBell {
         unsafe {
             let src_ptr = self.src_ptr as *mut std::ffi::c_void;
             let dst_ptr = self.dst_ptr as *mut std::ffi::c_void;
-            rdmaxcel_sys::db_ring(dst_ptr, src_ptr);
+            rdmaxcel_sys_hip::db_ring(dst_ptr, src_ptr);
             Ok(())
         }
     }
@@ -294,8 +290,8 @@ impl RdmaBuffer {
 /// * `context`: A pointer to the RDMA device context, representing the connection to the RDMA device.
 /// * `pd`: A pointer to the protection domain, which provides isolation between different connections.
 pub struct RdmaDomain {
-    pub context: *mut rdmaxcel_sys::ibv_context,
-    pub pd: *mut rdmaxcel_sys::ibv_pd,
+    pub context: *mut rdmaxcel_sys_hip::ibv_context,
+    pub pd: *mut rdmaxcel_sys_hip::ibv_pd,
 }
 
 impl std::fmt::Debug for RdmaDomain {
@@ -322,7 +318,7 @@ unsafe impl Sync for RdmaDomain {}
 impl Drop for RdmaDomain {
     fn drop(&mut self) {
         unsafe {
-            rdmaxcel_sys::ibv_dealloc_pd(self.pd);
+            rdmaxcel_sys_hip::ibv_dealloc_pd(self.pd);
         }
     }
 }
@@ -366,7 +362,7 @@ impl RdmaDomain {
             // Get the device based on the provided RdmaDevice
             let device_name = device.name();
             let mut num_devices = 0i32;
-            let devices = rdmaxcel_sys::ibv_get_device_list(&mut num_devices as *mut _);
+            let devices = rdmaxcel_sys_hip::ibv_get_device_list(&mut num_devices as *mut _);
 
             if devices.is_null() || num_devices == 0 {
                 return Err(anyhow::anyhow!("no RDMA devices found"));
@@ -377,7 +373,7 @@ impl RdmaDomain {
             for i in 0..num_devices {
                 let dev = *devices.offset(i as isize);
                 let dev_name =
-                    CStr::from_ptr(rdmaxcel_sys::ibv_get_device_name(dev)).to_string_lossy();
+                    CStr::from_ptr(rdmaxcel_sys_hip::ibv_get_device_name(dev)).to_string_lossy();
 
                 if dev_name == *device_name {
                     device_ptr = dev;
@@ -387,24 +383,24 @@ impl RdmaDomain {
 
             // If we didn't find the device, return an error
             if device_ptr.is_null() {
-                rdmaxcel_sys::ibv_free_device_list(devices);
+                rdmaxcel_sys_hip::ibv_free_device_list(devices);
                 return Err(anyhow::anyhow!("device '{}' not found", device_name));
             }
             tracing::info!("using RDMA device: {}", device_name);
 
             // Open device
-            let context = rdmaxcel_sys::ibv_open_device(device_ptr);
+            let context = rdmaxcel_sys_hip::ibv_open_device(device_ptr);
             if context.is_null() {
-                rdmaxcel_sys::ibv_free_device_list(devices);
+                rdmaxcel_sys_hip::ibv_free_device_list(devices);
                 let os_error = Error::last_os_error();
                 return Err(anyhow::anyhow!("failed to create context: {}", os_error));
             }
 
             // Create protection domain
-            let pd = rdmaxcel_sys::ibv_alloc_pd(context);
+            let pd = rdmaxcel_sys_hip::ibv_alloc_pd(context);
             if pd.is_null() {
-                rdmaxcel_sys::ibv_close_device(context);
-                rdmaxcel_sys::ibv_free_device_list(devices);
+                rdmaxcel_sys_hip::ibv_close_device(context);
+                rdmaxcel_sys_hip::ibv_free_device_list(devices);
                 let os_error = Error::last_os_error();
                 return Err(anyhow::anyhow!(
                     "failed to create protection domain (PD): {}",
@@ -413,7 +409,7 @@ impl RdmaDomain {
             }
 
             // Avoids memory leaks
-            rdmaxcel_sys::ibv_free_device_list(devices);
+            rdmaxcel_sys_hip::ibv_free_device_list(devices);
 
             let domain = RdmaDomain { context, pd };
 
@@ -455,13 +451,13 @@ pub enum PollTarget {
 /// 6. Poll for completions with `poll_send_completion()` or `poll_recv_completion()`
 #[derive(Debug, Serialize, Deserialize, Named, Clone)]
 pub struct RdmaQueuePair {
-    pub send_cq: usize,    // *mut rdmaxcel_sys::ibv_cq,
-    pub recv_cq: usize,    // *mut rdmaxcel_sys::ibv_cq,
-    pub qp: usize,         // *mut rdmaxcel_sys::ibv_qp,
-    pub dv_qp: usize,      // *mut rdmaxcel_sys::mlx5dv_qp,
-    pub dv_send_cq: usize, // *mut rdmaxcel_sys::mlx5dv_cq,
-    pub dv_recv_cq: usize, // *mut rdmaxcel_sys::mlx5dv_cq,
-    context: usize,        // *mut rdmaxcel_sys::ibv_context,
+    pub send_cq: usize,    // *mut rdmaxcel_sys_hip::ibv_cq,
+    pub recv_cq: usize,    // *mut rdmaxcel_sys_hip::ibv_cq,
+    pub qp: usize,         // *mut rdmaxcel_sys_hip::ibv_qp,
+    pub dv_qp: usize,      // *mut rdmaxcel_sys_hip::mlx5dv_qp,
+    pub dv_send_cq: usize, // *mut rdmaxcel_sys_hip::mlx5dv_cq,
+    pub dv_recv_cq: usize, // *mut rdmaxcel_sys_hip::mlx5dv_cq,
+    context: usize,        // *mut rdmaxcel_sys_hip::ibv_context,
     config: IbverbsConfig,
     pub send_wqe_idx: u64,
     pub send_db_idx: u64,
@@ -519,14 +515,14 @@ impl RdmaQueuePair {
     /// * Completion queue (CQ) creation fails
     /// * Queue pair (QP) creation fails
     pub fn new(
-        context: *mut rdmaxcel_sys::ibv_context,
-        pd: *mut rdmaxcel_sys::ibv_pd,
+        context: *mut rdmaxcel_sys_hip::ibv_context,
+        pd: *mut rdmaxcel_sys_hip::ibv_pd,
         config: IbverbsConfig,
     ) -> Result<Self, anyhow::Error> {
         tracing::debug!("creating an RdmaQueuePair from config {}", config);
         unsafe {
             // standard ibverbs QP
-            let qp = rdmaxcel_sys::create_qp(
+            let qp = rdmaxcel_sys_hip::create_qp(
                 context,
                 pd,
                 config.cq_entries,
@@ -548,14 +544,14 @@ impl RdmaQueuePair {
             let recv_cq = (*qp).recv_cq;
 
             // mlx5dv provider APIs
-            let dv_qp = rdmaxcel_sys::create_mlx5dv_qp(qp);
-            let dv_send_cq = rdmaxcel_sys::create_mlx5dv_send_cq(qp);
-            let dv_recv_cq = rdmaxcel_sys::create_mlx5dv_recv_cq(qp);
+            let dv_qp = rdmaxcel_sys_hip::create_mlx5dv_qp(qp);
+            let dv_send_cq = rdmaxcel_sys_hip::create_mlx5dv_send_cq(qp);
+            let dv_recv_cq = rdmaxcel_sys_hip::create_mlx5dv_recv_cq(qp);
 
             if dv_qp.is_null() || dv_send_cq.is_null() || dv_recv_cq.is_null() {
-                rdmaxcel_sys::ibv_destroy_cq((*qp).recv_cq);
-                rdmaxcel_sys::ibv_destroy_cq((*qp).send_cq);
-                rdmaxcel_sys::ibv_destroy_qp(qp);
+                rdmaxcel_sys_hip::ibv_destroy_cq((*qp).recv_cq);
+                rdmaxcel_sys_hip::ibv_destroy_cq((*qp).send_cq);
+                rdmaxcel_sys_hip::ibv_destroy_qp(qp);
                 return Err(anyhow::anyhow!(
                     "failed to init mlx5dv_qp or completion queues"
                 ));
@@ -563,11 +559,11 @@ impl RdmaQueuePair {
 
             // GPU Direct RDMA specific registrations
             if config.use_gpu_direct {
-                let ret = rdmaxcel_sys::register_cuda_memory(dv_qp, dv_recv_cq, dv_send_cq);
+                let ret = rdmaxcel_sys_hip::register_cuda_memory(dv_qp, dv_recv_cq, dv_send_cq);
                 if ret != 0 {
-                    rdmaxcel_sys::ibv_destroy_cq((*qp).recv_cq);
-                    rdmaxcel_sys::ibv_destroy_cq((*qp).send_cq);
-                    rdmaxcel_sys::ibv_destroy_qp(qp);
+                    rdmaxcel_sys_hip::ibv_destroy_cq((*qp).recv_cq);
+                    rdmaxcel_sys_hip::ibv_destroy_cq((*qp).send_cq);
+                    rdmaxcel_sys_hip::ibv_destroy_qp(qp);
                     return Err(anyhow::anyhow!(
                         "failed to register GPU Direct RDMA memory: {:?}",
                         ret
@@ -617,13 +613,13 @@ impl RdmaQueuePair {
         // - Error handling properly checks return codes from ibverbs functions
         // - The memory address provided is only stored, not dereferenced in this function
         unsafe {
-            let context = self.context as *mut rdmaxcel_sys::ibv_context;
-            let qp = self.qp as *mut rdmaxcel_sys::ibv_qp;
-            let mut port_attr = rdmaxcel_sys::ibv_port_attr::default();
-            let errno = rdmaxcel_sys::ibv_query_port(
+            let context = self.context as *mut rdmaxcel_sys_hip::ibv_context;
+            let qp = self.qp as *mut rdmaxcel_sys_hip::ibv_qp;
+            let mut port_attr = rdmaxcel_sys_hip::ibv_port_attr::default();
+            let errno = rdmaxcel_sys_hip::ibv_query_port(
                 context,
                 self.config.port_num,
-                &mut port_attr as *mut rdmaxcel_sys::ibv_port_attr as *mut _,
+                &mut port_attr as *mut rdmaxcel_sys_hip::ibv_port_attr as *mut _,
             );
             if errno != 0 {
                 let os_error = Error::last_os_error();
@@ -634,7 +630,7 @@ impl RdmaQueuePair {
             }
 
             let mut gid = Gid::default();
-            let ret = rdmaxcel_sys::ibv_query_gid(
+            let ret = rdmaxcel_sys_hip::ibv_query_gid(
                 context,
                 self.config.port_num,
                 i32::from(self.config.gid_index),
@@ -656,16 +652,16 @@ impl RdmaQueuePair {
     pub fn state(&mut self) -> Result<u32, anyhow::Error> {
         // SAFETY: This block interacts with the RDMA device through rdmaxcel_sys calls.
         unsafe {
-            let qp = self.qp as *mut rdmaxcel_sys::ibv_qp;
-            let mut qp_attr = rdmaxcel_sys::ibv_qp_attr {
+            let qp = self.qp as *mut rdmaxcel_sys_hip::ibv_qp;
+            let mut qp_attr = rdmaxcel_sys_hip::ibv_qp_attr {
                 ..Default::default()
             };
-            let mut qp_init_attr = rdmaxcel_sys::ibv_qp_init_attr {
+            let mut qp_init_attr = rdmaxcel_sys_hip::ibv_qp_init_attr {
                 ..Default::default()
             };
-            let mask = rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_STATE;
+            let mask = rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_STATE;
             let errno =
-                rdmaxcel_sys::ibv_query_qp(qp, &mut qp_attr, mask.0 as i32, &mut qp_init_attr);
+                rdmaxcel_sys_hip::ibv_query_qp(qp, &mut qp_attr, mask.0 as i32, &mut qp_init_attr);
             if errno != 0 {
                 let os_error = Error::last_os_error();
                 return Err(anyhow::anyhow!("failed to query QP state: {}", os_error));
@@ -690,27 +686,27 @@ impl RdmaQueuePair {
         // 4. Memory access is properly bounded by the registered memory regions
         unsafe {
             // Transition to INIT
-            let qp = self.qp as *mut rdmaxcel_sys::ibv_qp;
+            let qp = self.qp as *mut rdmaxcel_sys_hip::ibv_qp;
 
-            let qp_access_flags = rdmaxcel_sys::ibv_access_flags::IBV_ACCESS_LOCAL_WRITE
-                | rdmaxcel_sys::ibv_access_flags::IBV_ACCESS_REMOTE_WRITE
-                | rdmaxcel_sys::ibv_access_flags::IBV_ACCESS_REMOTE_READ
-                | rdmaxcel_sys::ibv_access_flags::IBV_ACCESS_REMOTE_ATOMIC;
+            let qp_access_flags = rdmaxcel_sys_hip::ibv_access_flags::IBV_ACCESS_LOCAL_WRITE
+                | rdmaxcel_sys_hip::ibv_access_flags::IBV_ACCESS_REMOTE_WRITE
+                | rdmaxcel_sys_hip::ibv_access_flags::IBV_ACCESS_REMOTE_READ
+                | rdmaxcel_sys_hip::ibv_access_flags::IBV_ACCESS_REMOTE_ATOMIC;
 
-            let mut qp_attr = rdmaxcel_sys::ibv_qp_attr {
-                qp_state: rdmaxcel_sys::ibv_qp_state::IBV_QPS_INIT,
+            let mut qp_attr = rdmaxcel_sys_hip::ibv_qp_attr {
+                qp_state: rdmaxcel_sys_hip::ibv_qp_state::IBV_QPS_INIT,
                 qp_access_flags: qp_access_flags.0,
                 pkey_index: self.config.pkey_index,
                 port_num: self.config.port_num,
                 ..Default::default()
             };
 
-            let mask = rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_STATE
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_PKEY_INDEX
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_PORT
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_ACCESS_FLAGS;
+            let mask = rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_STATE
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_PKEY_INDEX
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_PORT
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_ACCESS_FLAGS;
 
-            let errno = rdmaxcel_sys::ibv_modify_qp(qp, &mut qp_attr, mask.0 as i32);
+            let errno = rdmaxcel_sys_hip::ibv_modify_qp(qp, &mut qp_attr, mask.0 as i32);
             if errno != 0 {
                 let os_error = Error::last_os_error();
                 return Err(anyhow::anyhow!(
@@ -720,14 +716,14 @@ impl RdmaQueuePair {
             }
 
             // Transition to RTR (Ready to Receive)
-            let mut qp_attr = rdmaxcel_sys::ibv_qp_attr {
-                qp_state: rdmaxcel_sys::ibv_qp_state::IBV_QPS_RTR,
+            let mut qp_attr = rdmaxcel_sys_hip::ibv_qp_attr {
+                qp_state: rdmaxcel_sys_hip::ibv_qp_state::IBV_QPS_RTR,
                 path_mtu: self.config.path_mtu,
                 dest_qp_num: connection_info.qp_num,
                 rq_psn: connection_info.psn,
                 max_dest_rd_atomic: self.config.max_dest_rd_atomic,
                 min_rnr_timer: self.config.min_rnr_timer,
-                ah_attr: rdmaxcel_sys::ibv_ah_attr {
+                ah_attr: rdmaxcel_sys_hip::ibv_ah_attr {
                     dlid: connection_info.lid,
                     sl: 0,
                     src_path_bits: 0,
@@ -750,15 +746,15 @@ impl RdmaQueuePair {
                 qp_attr.ah_attr.is_global = 0;
             }
 
-            let mask = rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_STATE
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_AV
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_PATH_MTU
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_DEST_QPN
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_RQ_PSN
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_MAX_DEST_RD_ATOMIC
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_MIN_RNR_TIMER;
+            let mask = rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_STATE
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_AV
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_PATH_MTU
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_DEST_QPN
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_RQ_PSN
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_MAX_DEST_RD_ATOMIC
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_MIN_RNR_TIMER;
 
-            let errno = rdmaxcel_sys::ibv_modify_qp(qp, &mut qp_attr, mask.0 as i32);
+            let errno = rdmaxcel_sys_hip::ibv_modify_qp(qp, &mut qp_attr, mask.0 as i32);
             if errno != 0 {
                 let os_error = Error::last_os_error();
                 return Err(anyhow::anyhow!(
@@ -768,8 +764,8 @@ impl RdmaQueuePair {
             }
 
             // Transition to RTS (Ready to Send)
-            let mut qp_attr = rdmaxcel_sys::ibv_qp_attr {
-                qp_state: rdmaxcel_sys::ibv_qp_state::IBV_QPS_RTS,
+            let mut qp_attr = rdmaxcel_sys_hip::ibv_qp_attr {
+                qp_state: rdmaxcel_sys_hip::ibv_qp_state::IBV_QPS_RTS,
                 sq_psn: self.config.psn,
                 max_rd_atomic: self.config.max_rd_atomic,
                 retry_cnt: self.config.retry_cnt,
@@ -778,14 +774,14 @@ impl RdmaQueuePair {
                 ..Default::default()
             };
 
-            let mask = rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_STATE
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_TIMEOUT
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_RETRY_CNT
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_SQ_PSN
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_RNR_RETRY
-                | rdmaxcel_sys::ibv_qp_attr_mask::IBV_QP_MAX_QP_RD_ATOMIC;
+            let mask = rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_STATE
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_TIMEOUT
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_RETRY_CNT
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_SQ_PSN
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_RNR_RETRY
+                | rdmaxcel_sys_hip::ibv_qp_attr_mask::IBV_QP_MAX_QP_RD_ATOMIC;
 
-            let errno = rdmaxcel_sys::ibv_modify_qp(qp, &mut qp_attr, mask.0 as i32);
+            let errno = rdmaxcel_sys_hip::ibv_modify_qp(qp, &mut qp_attr, mask.0 as i32);
             if errno != 0 {
                 let os_error = Error::last_os_error();
                 return Err(anyhow::anyhow!(
@@ -893,7 +889,7 @@ impl RdmaQueuePair {
     /// * `Result<DoorBell, anyhow::Error>` - A doorbell for the queue pair
     pub fn ring_doorbell(&mut self) -> Result<(), anyhow::Error> {
         unsafe {
-            let dv_qp = self.dv_qp as *mut rdmaxcel_sys::mlx5dv_qp;
+            let dv_qp = self.dv_qp as *mut rdmaxcel_sys_hip::mlx5dv_qp;
             let base_ptr = (*dv_qp).sq.buf as *mut u8;
             let wqe_cnt = (*dv_qp).sq.wqe_cnt;
             let stride = (*dv_qp).sq.stride;
@@ -904,7 +900,7 @@ impl RdmaQueuePair {
             while self.send_db_idx < self.send_wqe_idx {
                 let offset = (self.send_db_idx % wqe_cnt as u64) * stride as u64;
                 let src_ptr = (base_ptr as *mut u8).wrapping_add(offset as usize);
-                rdmaxcel_sys::db_ring((*dv_qp).bf.reg, src_ptr as *mut std::ffi::c_void);
+                rdmaxcel_sys_hip::db_ring((*dv_qp).bf.reg, src_ptr as *mut std::ffi::c_void);
                 self.send_db_idx += 1;
             }
             Ok(())
@@ -1076,23 +1072,23 @@ impl RdmaQueuePair {
         // - The ibverbs post_send operation follows the documented API contract
         // - Error codes from the device are properly checked and propagated
         unsafe {
-            let qp = self.qp as *mut rdmaxcel_sys::ibv_qp;
-            let context = self.context as *mut rdmaxcel_sys::ibv_context;
+            let qp = self.qp as *mut rdmaxcel_sys_hip::ibv_qp;
+            let context = self.context as *mut rdmaxcel_sys_hip::ibv_context;
             let ops = &mut (*context).ops;
             let errno;
             if op_type == RdmaOperation::Recv {
-                let mut sge = rdmaxcel_sys::ibv_sge {
+                let mut sge = rdmaxcel_sys_hip::ibv_sge {
                     addr: laddr as u64,
                     length: length as u32,
                     lkey,
                 };
-                let mut wr = rdmaxcel_sys::ibv_recv_wr {
+                let mut wr = rdmaxcel_sys_hip::ibv_recv_wr {
                     wr_id: wr_id.into(),
                     sg_list: &mut sge as *mut _,
                     num_sge: 1,
                     ..Default::default()
                 };
-                let mut bad_wr: *mut rdmaxcel_sys::ibv_recv_wr = std::ptr::null_mut();
+                let mut bad_wr: *mut rdmaxcel_sys_hip::ibv_recv_wr = std::ptr::null_mut();
                 errno = ops.post_recv.as_mut().unwrap()(qp, &mut wr as *mut _, &mut bad_wr);
             } else if op_type == RdmaOperation::Write
                 || op_type == RdmaOperation::Read
@@ -1101,16 +1097,16 @@ impl RdmaQueuePair {
                 // Apply hardware initialization delay if this is the first operation
                 self.apply_first_op_delay(wr_id);
                 let send_flags = if signaled {
-                    rdmaxcel_sys::ibv_send_flags::IBV_SEND_SIGNALED.0
+                    rdmaxcel_sys_hip::ibv_send_flags::IBV_SEND_SIGNALED.0
                 } else {
                     0
                 };
-                let mut sge = rdmaxcel_sys::ibv_sge {
+                let mut sge = rdmaxcel_sys_hip::ibv_sge {
                     addr: laddr as u64,
                     length: length as u32,
                     lkey,
                 };
-                let mut wr = rdmaxcel_sys::ibv_send_wr {
+                let mut wr = rdmaxcel_sys_hip::ibv_send_wr {
                     wr_id: wr_id.into(),
                     next: std::ptr::null_mut(),
                     sg_list: &mut sge as *mut _,
@@ -1125,7 +1121,7 @@ impl RdmaQueuePair {
 
                 wr.wr.rdma.remote_addr = raddr as u64;
                 wr.wr.rdma.rkey = rkey;
-                let mut bad_wr: *mut rdmaxcel_sys::ibv_send_wr = std::ptr::null_mut();
+                let mut bad_wr: *mut rdmaxcel_sys_hip::ibv_send_wr = std::ptr::null_mut();
 
                 errno = ops.post_send.as_mut().unwrap()(qp, &mut wr as *mut _, &mut bad_wr);
             } else {
@@ -1163,18 +1159,18 @@ impl RdmaQueuePair {
     ) -> Result<DoorBell, anyhow::Error> {
         unsafe {
             let op_type_val = match op_type {
-                RdmaOperation::Write => rdmaxcel_sys::MLX5_OPCODE_RDMA_WRITE,
-                RdmaOperation::WriteWithImm => rdmaxcel_sys::MLX5_OPCODE_RDMA_WRITE_IMM,
-                RdmaOperation::Read => rdmaxcel_sys::MLX5_OPCODE_RDMA_READ,
+                RdmaOperation::Write => rdmaxcel_sys_hip::MLX5_OPCODE_RDMA_WRITE,
+                RdmaOperation::WriteWithImm => rdmaxcel_sys_hip::MLX5_OPCODE_RDMA_WRITE_IMM,
+                RdmaOperation::Read => rdmaxcel_sys_hip::MLX5_OPCODE_RDMA_READ,
                 RdmaOperation::Recv => 0,
             };
 
-            let qp = self.qp as *mut rdmaxcel_sys::ibv_qp;
-            let dv_qp = self.dv_qp as *mut rdmaxcel_sys::mlx5dv_qp;
+            let qp = self.qp as *mut rdmaxcel_sys_hip::ibv_qp;
+            let dv_qp = self.dv_qp as *mut rdmaxcel_sys_hip::mlx5dv_qp;
             let _dv_cq = if op_type == RdmaOperation::Recv {
-                self.dv_recv_cq as *mut rdmaxcel_sys::mlx5dv_cq
+                self.dv_recv_cq as *mut rdmaxcel_sys_hip::mlx5dv_cq
             } else {
-                self.dv_send_cq as *mut rdmaxcel_sys::mlx5dv_cq
+                self.dv_send_cq as *mut rdmaxcel_sys_hip::mlx5dv_cq
             };
 
             // Create the WQE parameters struct
@@ -1185,7 +1181,7 @@ impl RdmaQueuePair {
                 (*dv_qp).sq.buf as *mut u8
             };
 
-            let params = rdmaxcel_sys::wqe_params_t {
+            let params = rdmaxcel_sys_hip::wqe_params_t {
                 laddr,
                 lkey,
                 length,
@@ -1202,10 +1198,10 @@ impl RdmaQueuePair {
 
             // Call the C function to post the WQE
             if op_type == RdmaOperation::Recv {
-                rdmaxcel_sys::recv_wqe(params);
+                rdmaxcel_sys_hip::recv_wqe(params);
                 std::ptr::write_volatile((*dv_qp).dbrec, 1_u32.to_be());
             } else {
-                rdmaxcel_sys::send_wqe(params);
+                rdmaxcel_sys_hip::send_wqe(params);
             };
 
             // Create and return a DoorBell struct
@@ -1233,15 +1229,15 @@ impl RdmaQueuePair {
         target: PollTarget,
     ) -> Result<Option<IbvWc>, anyhow::Error> {
         unsafe {
-            let context = self.context as *mut rdmaxcel_sys::ibv_context;
+            let context = self.context as *mut rdmaxcel_sys_hip::ibv_context;
             let _outstanding_wqe =
                 self.send_db_idx + self.recv_db_idx - self.send_cq_idx - self.recv_cq_idx;
 
             // Check for send completions if requested
             if (target == PollTarget::Send) && self.send_db_idx > self.send_cq_idx {
-                let send_cq = self.send_cq as *mut rdmaxcel_sys::ibv_cq;
+                let send_cq = self.send_cq as *mut rdmaxcel_sys_hip::ibv_cq;
                 let ops = &mut (*context).ops;
-                let mut wc = std::mem::MaybeUninit::<rdmaxcel_sys::ibv_wc>::zeroed().assume_init();
+                let mut wc = std::mem::MaybeUninit::<rdmaxcel_sys_hip::ibv_wc>::zeroed().assume_init();
                 let ret = ops.poll_cq.as_mut().unwrap()(send_cq, 1, &mut wc);
 
                 if ret < 0 {
@@ -1277,9 +1273,9 @@ impl RdmaQueuePair {
 
             // Check for receive completions if requested
             if (target == PollTarget::Recv) && self.recv_db_idx > self.recv_cq_idx {
-                let recv_cq = self.recv_cq as *mut rdmaxcel_sys::ibv_cq;
+                let recv_cq = self.recv_cq as *mut rdmaxcel_sys_hip::ibv_cq;
                 let ops = &mut (*context).ops;
-                let mut wc = std::mem::MaybeUninit::<rdmaxcel_sys::ibv_wc>::zeroed().assume_init();
+                let mut wc = std::mem::MaybeUninit::<rdmaxcel_sys_hip::ibv_wc>::zeroed().assume_init();
                 let ret = ops.poll_cq.as_mut().unwrap()(recv_cq, 1, &mut wc);
 
                 if ret < 0 {
@@ -1373,20 +1369,20 @@ pub async fn validate_execution_context() -> Result<(), anyhow::Error> {
 ///
 /// # Returns
 /// * `Vec<SegmentInfo>` - Vector containing all registered segment information
-pub fn get_registered_cuda_segments() -> Vec<rdmaxcel_sys::rdma_segment_info_t> {
+pub fn get_registered_cuda_segments() -> Vec<rdmaxcel_sys_hip::rdma_segment_info_t> {
     unsafe {
-        let segment_count = rdmaxcel_sys::rdma_get_active_segment_count();
+        let segment_count = rdmaxcel_sys_hip::rdma_get_active_segment_count();
         if segment_count <= 0 {
             return Vec::new();
         }
 
         let mut segments = vec![
-            std::mem::MaybeUninit::<rdmaxcel_sys::rdma_segment_info_t>::zeroed()
+            std::mem::MaybeUninit::<rdmaxcel_sys_hip::rdma_segment_info_t>::zeroed()
                 .assume_init();
             segment_count as usize
         ];
         let actual_count =
-            rdmaxcel_sys::rdma_get_all_segment_info(segments.as_mut_ptr(), segment_count);
+            rdmaxcel_sys_hip::rdma_get_all_segment_info(segments.as_mut_ptr(), segment_count);
 
         if actual_count > 0 {
             segments.truncate(actual_count as usize);
@@ -1409,7 +1405,7 @@ pub fn get_registered_cuda_segments() -> Vec<rdmaxcel_sys::rdma_segment_info_t> 
 /// `false` otherwise.
 pub fn pt_cuda_allocator_compatibility() -> bool {
     // SAFETY: We are calling a C++ function from rdmaxcel that accesses PyTorch C10 APIs.
-    unsafe { rdmaxcel_sys::pt_cuda_allocator_compatibility() }
+    unsafe { rdmaxcel_sys_hip::pt_cuda_allocator_compatibility() }
 }
 
 #[cfg(test)]

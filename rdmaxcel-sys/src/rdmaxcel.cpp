@@ -7,9 +7,21 @@
  */
 
 #include "rdmaxcel.h"
-#include <c10/cuda/CUDAAllocatorConfig.h>
-#include <c10/cuda/CUDACachingAllocator.h>
-#include <cuda.h>
+#ifdef __HIP_PLATFORM_AMD__
+  #include <c10/hip/HIPAllocatorConfig.h>
+  #include <c10/hip/HIPCachingAllocator.h>
+  #include <hip/hip_runtime_api.h>
+  // HIP uses different CUDA driver API
+  typedef hipDeviceptr_t CUdeviceptr;
+  typedef hipError_t CUresult;
+  #define CUDA_SUCCESS hipSuccess
+  #define cuMemGetHandleForAddressRange hipMemGetHandleForAddressRange // Note: This might need adjustment
+  #define CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD hipMemRangeHandleTypeDmaBufFd // Note: This might need adjustment
+#else
+  #include <c10/cuda/CUDAAllocatorConfig.h>
+  #include <c10/cuda/CUDACachingAllocator.h>
+  #include <cuda.h>
+#endif
 #include <unistd.h>
 #include <mutex>
 #include <set>

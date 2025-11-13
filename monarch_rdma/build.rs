@@ -6,80 +6,29 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+use std::env;
+use std::path::PathBuf;
+
 #[cfg(target_os = "macos")]
 fn main() {}
 
 #[cfg(not(target_os = "macos"))]
 fn main() {
-    // Check USE_ROCM environment variable to decide between CUDA and ROCm
+    println!("cargo::rustc-check-cfg=cfg(rocm)");
+    println!("cargo::rustc-check-cfg=cfg(cuda)");
+
+    // Determine platform from environment, not from a potentially unset cfg flag
     let use_rocm = build_utils::use_rocm();
 
+    // Now, set the cfg flags for this crate based on the environment
     if use_rocm {
-        println!("cargo:rustc-cfg=feature=\"rocm\"");
-        println!("cargo:rustc-check-cfg=cfg(feature, values(\"rocm\"))");
+        println!("cargo:rustc-cfg=rocm");
     } else {
-        println!("cargo:rustc-cfg=feature=\"cuda\"");
-        println!("cargo:rustc-check-cfg=cfg(feature, values(\"cuda\"))");
+        println!("cargo:rustc-cfg=cuda");
     }
 
-    let accelerator_lib_dir = if use_rocm {
-        // Use ROCm/HIP
-        let _rocm_home = match build_utils::validate_rocm_installation() {
-            Ok(home) => home,
-            Err(_) => {
-                build_utils::print_rocm_error_help();
-                std::process::exit(1);
-            }
-        };
-
-        match build_utils::get_rocm_lib_dir() {
-            Ok(dir) => dir,
-            Err(_) => {
-                build_utils::print_rocm_lib_error_help();
-                std::process::exit(1);
-            }
-        }
-    } else {
-        // Use CUDA
-        let _cuda_home = match build_utils::validate_cuda_installation() {
-            Ok(home) => home,
-            Err(_) => {
-                build_utils::print_cuda_error_help();
-                std::process::exit(1);
-            }
-        };
-
-        match build_utils::get_cuda_lib_dir() {
-            Ok(dir) => dir,
-            Err(_) => {
-                build_utils::print_cuda_lib_error_help();
-                std::process::exit(1);
-            }
-        }
-    };
-
-    // Include headers and libs from the active environment.
-    let python_config = match build_utils::python_env_dirs_with_interpreter("python3") {
-        Ok(config) => config,
-        Err(_) => {
-            eprintln!("Warning: Failed to get Python environment directories");
-            build_utils::PythonConfig {
-                include_dir: None,
-                lib_dir: None,
-            }
-        }
-    };
-
-    if let Some(lib_dir) = &python_config.lib_dir {
-        println!("cargo:rustc-link-search=native={}", lib_dir);
-        // Set cargo metadata to inform dependent binaries about how to set their
-        // RPATH (see controller/build.rs for an example).
-        println!("cargo:metadata=LIB_PATH={}", lib_dir);
-    }
-
-    // Link against accelerator libraries
-    println!("cargo:rustc-link-search=native={}", accelerator_lib_dir);
-
+    // --- 1. Link Accelerator Libraries (from accelerator-sys) ---
+    // These are the core driver libs.
     if use_rocm {
         println!("cargo:rustc-link-lib=amdhip64");
     } else {
@@ -87,104 +36,105 @@ fn main() {
         println!("cargo:rustc-link-lib=cudart");
     }
 
-    // Link against the ibverbs and mlx5 libraries (used by rdmaxcel-sys)
+    // --- 2. Link RDMA Hardware Libraries (Always) ---
     println!("cargo:rustc-link-lib=ibverbs");
     println!("cargo:rustc-link-lib=mlx5");
 
-    // Link PyTorch libraries needed for C10 symbols used by rdmaxcel-sys
+    // --- 3. Link PyTorch & C10 Libraries ---
     let use_pytorch_apis = build_utils::get_env_var_with_rerun("TORCH_SYS_USE_PYTORCH_APIS")
         .unwrap_or_else(|_| "1".to_owned());
+
     if use_pytorch_apis == "1" {
-        // Get PyTorch library directory using build_utils
-        let python_interpreter = std::path::PathBuf::from("python");
+        // Find the main PyTorch library path
+        let python_interpreter = PathBuf::from("python3"); // Use python3
         if let Ok(output) = std::process::Command::new(&python_interpreter)
             .arg("-c")
-            .arg(build_utils::PYTHON_PRINT_PYTORCH_DETAILS)
+            .arg(build_utils::PYTHON_PRINT_PYTORCH_DETAILS) // Assumes this script prints LIBTORCH_LIB
             .output()
         {
             if output.status.success() {
                 for line in String::from_utf8_lossy(&output.stdout).lines() {
                     if let Some(path) = line.strip_prefix("LIBTORCH_LIB: ") {
-                        // Add library search path
+                        // Add library search path and rpath
                         println!("cargo:rustc-link-search=native={}", path);
-                        // Set rpath so runtime linker can find the libraries
-                        println!("cargo::rustc-link-arg=-Wl,-rpath,{}", path);
+                        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", path);
                     }
                 }
+            } else {
+                // Panic if python script fails
+                panic!(
+                    "Failed to get PyTorch details from python. Is torch installed in your python3 environment?\nStderr: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
             }
+        } else {
+            panic!("Failed to run python3. Is it in your PATH?");
         }
 
-        // Link core PyTorch libraries needed for C10 symbols
+        // Link common PyTorch libs
         println!("cargo:rustc-link-lib=torch_cpu");
         println!("cargo:rustc-link-lib=torch");
         println!("cargo:rustc-link-lib=c10");
 
+        // Link platform-specific PyTorch libs (from torch-sys-accel)
         if use_rocm {
             println!("cargo:rustc-link-lib=c10_hip");
+            // Add torch_hip if it exists
+            // println!("cargo:rustc-link-lib=torch_hip");
         } else {
             println!("cargo:rustc-link-lib=c10_cuda");
-        }
-    } else {
-        // Fallback to torch-sys links metadata if available
-        if let Ok(torch_lib_path) = std::env::var("DEP_TORCH_LIB_PATH") {
-            println!("cargo::rustc-link-arg=-Wl,-rpath,{}", torch_lib_path);
+            println!("cargo:rustc-link-lib=torch_cuda");
         }
     }
 
-    // Set rpath for NCCL libraries if available
-    if let Ok(nccl_lib_path) = std::env::var("DEP_NCCL_LIB_PATH") {
-        println!("cargo::rustc-link-arg=-Wl,-rpath,{}", nccl_lib_path);
-    }
+    // --- 4. Link our compiled 'rdmaxcel-sys' static libraries ---
+    // We now have only one dependency crate: rdmaxcel-sys.
+    // We get its OUT_DIR and conditionally link the lib name.
 
-    // Disable new dtags, as conda envs generally use `RPATH` over `RUNPATH`
-    println!("cargo::rustc-link-arg=-Wl,--disable-new-dtags");
+    // This is the variable Cargo sets from our dependency
+    let dep_out_dir_var = "DEP_RDMAXCEL_SYS_OUT_DIR";
 
-    // Link the static libraries from rdmaxcel-sys or rdmaxcel-sys-hip
-    // Try the Cargo dependency mechanism first, then fall back to fixed paths
-    let dep_out_dir_var = if use_rocm {
-        "DEP_RDMAXCEL_SYS_HIP_OUT_DIR"
-    } else {
-        "DEP_RDMAXCEL_SYS_OUT_DIR"
-    };
-
-    if let Ok(rdmaxcel_out_dir) = std::env::var(dep_out_dir_var) {
+    if let Ok(rdmaxcel_out_dir) = env::var(dep_out_dir_var) {
         println!("cargo:rustc-link-search=native={}", rdmaxcel_out_dir);
+
+        // Link the common C and C++ static libraries
         println!("cargo:rustc-link-lib=static=rdmaxcel");
         println!("cargo:rustc-link-lib=static=rdmaxcel_cpp");
 
+        // Link the platform-specific accelerator static library
         if use_rocm {
             println!("cargo:rustc-link-lib=static=rdmaxcel_hip");
         } else {
             println!("cargo:rustc-link-lib=static=rdmaxcel_cuda");
         }
     } else {
-        eprintln!("Warning: {} not found. Using fallback paths.", dep_out_dir_var);
+        // This fallback logic is now simplified, as it only looks for one crate
+        eprintln!(
+            "Warning: {} not found. Using fallback path.",
+            dep_out_dir_var
+        );
 
-        // Use relative paths to the known locations
-        let (rdmaxcel_dir, build_subdir, lib_name) = if use_rocm {
-            ("../rdmaxcel-sys-hip", "hip_build", "rdmaxcel_hip")
+        let (build_subdir, lib_name) = if use_rocm {
+            ("hip_build", "rdmaxcel_hip")
         } else {
-            ("../rdmaxcel-sys", "cuda_build", "rdmaxcel_cuda")
+            ("cuda_build", "rdmaxcel_cuda")
         };
 
-        let accelerator_build_dir = format!("{}/target/{}", rdmaxcel_dir, build_subdir);
+        // Link accelerator lib
+        let accelerator_build_dir = format!("../rdmaxcel-sys/target/{}", build_subdir);
         println!("cargo:rustc-link-search=native={}", accelerator_build_dir);
         println!("cargo:rustc-link-lib=static={}", lib_name);
 
-        // Find the most recent rdmaxcel-sys build directory for C/C++ libraries
+        // Find the common C/C++ libs from the most recent build
         let monarch_target_dir = "../target/debug/build";
         if let Ok(entries) = std::fs::read_dir(monarch_target_dir) {
-            let search_prefix = if use_rocm {
-                "rdmaxcel-sys-hip-"
-            } else {
-                "rdmaxcel-sys-"
-            };
+            let search_prefix = "rdmaxcel-sys-"; // Only one prefix now
 
             let mut rdmaxcel_dirs: Vec<_> = entries
                 .filter_map(|entry| entry.ok())
                 .filter(|entry| {
                     let name = entry.file_name().to_string_lossy().to_string();
-                    name.starts_with(search_prefix) && !name.contains("hip-") // Avoid matching hip when looking for base sys
+                    name.starts_with(search_prefix)
                 })
                 .collect();
 
@@ -200,12 +150,32 @@ fn main() {
                     println!("cargo:rustc-link-lib=static=rdmaxcel_cpp");
                 }
             } else {
-                eprintln!("Warning: No {} build directories found", search_prefix);
+                eprintln!(
+                    "Warning: No {} build directories found in fallback",
+                    search_prefix
+                );
             }
         }
     }
 
+    // --- 5. Final Linker Arguments ---
+
+    // Add rpath for Python libs if found
+    if let Ok(py_config) = build_utils::python_env_dirs_with_interpreter("python3") {
+        if let Some(lib_dir) = &py_config.lib_dir {
+            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir);
+        }
+    }
+
+    // Add rpath for NCCL libraries if available
+    if let Ok(nccl_lib_path) = env::var("DEP_NCCL_LIB_PATH") {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", nccl_lib_path);
+    }
+
+    // Disable new dtags, as conda envs generally use `RPATH` over `RUNPATH`
+    println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags");
+
     // Set build configuration flags
-    println!("cargo::rustc-cfg=cargo");
-    println!("cargo::rustc-check-cfg=cfg(cargo)");
+    println!("cargo:rustc-cfg=cargo");
+    println!("cargo:rustc-check-cfg=cfg(cargo)");
 }

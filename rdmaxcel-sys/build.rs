@@ -7,74 +7,257 @@
  */
 
 use std::env;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[cfg(target_os = "macos")]
 fn main() {}
 
-#[cfg(not(target_os = "macos"))]
-fn main() {
-    // Link against the ibverbs library
-    println!("cargo:rustc-link-lib=ibverbs");
+/// Helper function to check if a command exists
+fn command_exists(cmd: &str) -> bool {
+    Command::new("which")
+        .arg(cmd)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
 
-    // Link against the mlx5 library
-    println!("cargo:rustc-link-lib=mlx5");
-
-    // Tell cargo to invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=src/rdmaxcel.h");
-    println!("cargo:rerun-if-changed=src/rdmaxcel.c");
-    println!("cargo:rerun-if-changed=src/rdmaxcel.cpp");
-
-    // Validate CUDA installation and get CUDA home path
-    let cuda_home = match build_utils::validate_cuda_installation() {
-        Ok(home) => home,
-        Err(_) => {
-            build_utils::print_cuda_error_help();
-            std::process::exit(1);
+/// Helper function to run hipify (either hipify_torch or hipify-perl).
+fn run_hipify(input: &Path, output: &Path, use_hipify_torch: bool) {
+    // Only run if the output doesn't exist or the input is newer
+    if output.exists() {
+        if let (Ok(in_meta), Ok(out_meta)) = (input.metadata(), output.metadata()) {
+            if let (Ok(in_time), Ok(out_time)) = (in_meta.modified(), out_meta.modified()) {
+                if in_time < out_time {
+                    return; // Output is up-to-date
+                }
+            }
         }
-    };
-
-    // Get the directory of the current crate
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| {
-        // For buck2 run, we know the package is in fbcode/monarch/rdmaxcel-sys
-        // Get the fbsource directory from the current directory path
-        let current_dir = std::env::current_dir().expect("Failed to get current directory");
-        let current_path = current_dir.to_string_lossy();
-
-        // Find the fbsource part of the path
-        if let Some(fbsource_pos) = current_path.find("fbsource") {
-            let fbsource_path = &current_path[..fbsource_pos + "fbsource".len()];
-            format!("{}/fbcode/monarch/rdmaxcel-sys", fbsource_path)
-        } else {
-            // If we can't find fbsource in the path, just use the current directory
-            format!("{}/src", current_dir.to_string_lossy())
-        }
-    });
-
-    // Create the absolute path to the header file
-    let header_path = format!("{}/src/rdmaxcel.h", manifest_dir);
-
-    // Check if the header file exists
-    if !Path::new(&header_path).exists() {
-        panic!("Header file not found at {}", header_path);
     }
 
-    // Start building the bindgen configuration
+    let hipify_cmd = if use_hipify_torch { "hipify_torch" } else { "hipify-perl" };
+
+    eprintln!(
+        "HIPify: Running {} {} -o {}",
+        hipify_cmd,
+        input.display(),
+        output.display()
+    );
+
+    let mut cmd = Command::new(hipify_cmd);
+    
+    if use_hipify_torch {
+        // hipify_torch has different argument format
+        cmd.arg("--output-file").arg(output);
+        cmd.arg(input);
+    } else {
+        // hipify-perl format
+        cmd.arg(input).arg("-o").arg(output);
+    }
+
+    let output_result = cmd.output();
+    
+    let output = output_result.unwrap_or_else(|_| {
+        panic!("Failed to run hipify tool '{}'. Is it in your PATH?", hipify_cmd)
+    });
+
+    if !output.status.success() {
+        eprintln!(
+            "Hipify failed for {}. Stderr: {}",
+            input.display(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        eprintln!(
+            "Hipify stdout: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        panic!("Hipify failed to convert source file.");
+    }
+}
+
+/// Post-process hipified files to fix PyTorch-specific headers and namespaces
+fn fix_pytorch_hip_headers(file_path: &Path) {
+    if !file_path.exists() {
+        return;
+    }
+    
+    let content = std::fs::read_to_string(file_path)
+        .expect("Failed to read hipified file");
+    
+    // Fix PyTorch headers - from CUDA to HIP
+    let fixed = content
+        // Headers
+        .replace("#include <c10/cuda/CUDAAllocatorConfig.h>", "#include <c10/hip/HIPAllocatorConfig.h>")
+        .replace("#include <c10/cuda/CUDACachingAllocator.h>", "#include <c10/hip/HIPCachingAllocator.h>")
+        // Namespaces
+        .replace("c10::cuda::CUDACachingAllocator", "c10::hip::HIPCachingAllocator")
+        .replace("c10::cuda::CUDAAllocatorConfig", "c10::hip::HIPAllocatorConfig")
+        // CUDA Driver API to HIP equivalents
+        .replace("CUdeviceptr", "hipDeviceptr_t")
+        .replace("CUresult", "hipError_t")
+        .replace("CUDA_SUCCESS", "hipSuccess")
+        .replace("cuMemGetHandleForAddressRange", "hipMemGetHandleForAddressRange")
+        .replace("CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD", "hipMemRangeHandleTypeDmaBufFd")
+        .replace("cuPointerGetAttribute", "hipPointerGetAttribute")
+        .replace("CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL", "HIP_POINTER_ATTRIBUTE_DEVICE_ORDINAL")
+        .replace("cuDeviceGet", "hipDeviceGet")
+        .replace("CUdevice", "hipDevice_t")
+        .replace("cuDeviceGetAttribute", "hipDeviceGetAttribute")
+        .replace("CU_DEVICE_ATTRIBUTE_PCI_BUS_ID", "hipDeviceAttributePciBusId")
+        .replace("CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID", "hipDeviceAttributePciDeviceId")
+        .replace("CU_DEVICE_ATTRIBUTE_PCI_DOMAIN_ID", "hipDeviceAttributePciDomainId")
+        // Fix static_cast to reinterpret_cast for hipDeviceptr_t (void*)
+        .replace("static_cast<hipDeviceptr_t>", "reinterpret_cast<hipDeviceptr_t>");
+    
+    std::fs::write(file_path, fixed)
+        .expect("Failed to write fixed hipified file");
+}
+
+/// Helper function to get PyTorch includes
+fn get_pytorch_includes() -> Vec<PathBuf> {
+    let output = std::process::Command::new("python3")
+        .arg("-c")
+        .arg(build_utils::PYTHON_PRINT_PYTORCH_DETAILS)
+        .output()
+        .expect("Failed to run python3 to get PyTorch details");
+
+    if !output.status.success() {
+        panic!(
+            "Failed to get PyTorch details from python: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.strip_prefix("LIBTORCH_INCLUDE: "))
+        .map(PathBuf::from)
+        .collect()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn main() {
+    println!("cargo:rerun-if-env-changed=USE_ROCM");
+
+    let use_rocm = build_utils::use_rocm();
+
+    // --- 1. Platform Configuration ---
+    let (
+        accelerator_home,
+        accelerator_include_path, // This is for nvcc/hipcc
+        bindgen_include_dirs,     // This is for bindgen/clang
+        compiler_name,
+        lib_name_suffix,
+    ) = if use_rocm {
+        let config = build_utils::discover_hip_config().unwrap_or_else(|_| {
+            build_utils::print_rocm_error_help();
+            std::process::exit(1);
+        });
+        let home = config.rocm_home.expect("ROCm home not found");
+        let _lib_dir = build_utils::get_rocm_lib_dir().unwrap_or_else(|_| {
+            build_utils::print_rocm_lib_error_help();
+            std::process::exit(1);
+        });
+        (
+            home.to_string_lossy().to_string(),
+            format!("{}/include", home.display()),
+            config.include_dirs, // <-- Use the full list for bindgen
+            "hipcc",
+            "hip",
+        )
+    } else {
+        let home = build_utils::validate_cuda_installation().unwrap_or_else(|_| {
+            build_utils::print_cuda_error_help();
+            std::process::exit(1);
+        });
+        let config = build_utils::discover_cuda_config().unwrap(); // We know it exists
+        (
+            home.clone(),
+            format!("{}/include", home),
+            config.include_dirs, // <-- Use the full list for bindgen
+            "nvcc",
+            "cuda",
+        )
+    };
+
+    // --- 2. Path Setup ---
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+    let build_dir = PathBuf::from(&manifest_dir)
+        .join("target")
+        .join(format!("{}_build", lib_name_suffix));
+    std::fs::create_dir_all(&build_dir).expect("Failed to create build directory");
+
+    let source_dir = PathBuf::from(&manifest_dir).join("src");
+    let original_cu = source_dir.join("rdmaxcel.cu");
+    let original_cpp = source_dir.join("rdmaxcel.cpp");
+    let original_c = source_dir.join("rdmaxcel.c");
+    let original_h = source_dir.join("rdmaxcel.h");
+
+    // --- 3. Conditional HIPify File Generation ---
+    let (accel_src_to_compile, cpp_src_to_compile, c_src_to_compile, header_to_parse) = if use_rocm
+    {
+        // Check if hipify_torch is available, otherwise fall back to hipify-perl
+        let use_hipify_torch = command_exists("hipify_torch");
+        
+        if use_hipify_torch {
+            eprintln!("Using hipify_torch for better PyTorch support");
+        } else {
+            eprintln!("hipify_torch not found, using hipify-perl with post-processing");
+        }
+
+        let hip_cu = build_dir.join("rdmaxcel.hip");
+        let hip_cpp = build_dir.join("rdmaxcel.cpp");
+        let hip_h = build_dir.join("rdmaxcel.h");
+        let hip_c = build_dir.join("rdmaxcel.c");
+
+        run_hipify(&original_cu, &hip_cu, use_hipify_torch);
+        run_hipify(&original_cpp, &hip_cpp, use_hipify_torch);
+        run_hipify(&original_h, &hip_h, use_hipify_torch);
+        run_hipify(&original_c, &hip_c, use_hipify_torch);
+
+        // If we used hipify-perl, post-process to fix PyTorch headers
+        if !use_hipify_torch {
+            eprintln!("Post-processing hipified files to fix PyTorch headers...");
+            fix_pytorch_hip_headers(&hip_cpp);
+            fix_pytorch_hip_headers(&hip_h);
+            // .cu and .c files probably don't need PyTorch header fixes
+        }
+
+        println!("cargo:rerun-if-changed={}", original_cu.display());
+        println!("cargo:rerun-if-changed={}", original_cpp.display());
+        println!("cargo:rerun-if-changed={}", original_h.display());
+        println!("cargo:rerun-if-changed={}", original_c.display());
+        (hip_cu, hip_cpp, hip_c, hip_h)
+    } else {
+        println!("cargo:rerun-if-changed={}", original_cu.display());
+        println!("cargo:rerun-if-changed={}", original_cpp.display());
+        println!("cargo:rerun-if-changed={}", original_h.display());
+        println!("cargo:rerun-if-changed={}", original_c.display());
+        (
+            original_cu.clone(),
+            original_cpp.clone(),
+            original_c.clone(),
+            original_h.clone(),
+        )
+    };
+
+    // --- 4. Link IB Verbs (Always) ---
+    println!("cargo:rustc-link-lib=ibverbs");
+    println!("cargo:rustc-link-lib=mlx5");
+
+    // --- 5. Bindgen (Uses generated or original header) ---
     let mut builder = bindgen::Builder::default()
-        // The input header we would like to generate bindings for
-        .header(&header_path)
+        .header(header_to_parse.to_string_lossy().as_ref())
         .clang_arg("-x")
         .clang_arg("c++")
         .clang_arg("-std=gnu++20")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-        // Allow the specified functions, types, and variables
         .allowlist_function("ibv_.*")
         .allowlist_function("mlx5dv_.*")
         .allowlist_function("mlx5_wqe_.*")
         .allowlist_function("create_qp")
         .allowlist_function("create_mlx5dv_.*")
-        .allowlist_function("register_cuda_memory")
+        .allowlist_function("(register_cuda_memory|register_hip_memory)")
         .allowlist_function("db_ring")
         .allowlist_function("cqe_poll")
         .allowlist_function("send_wqe")
@@ -85,7 +268,7 @@ fn main() {
         .allowlist_function("launch_recv_wqe")
         .allowlist_function("rdma_get_active_segment_count")
         .allowlist_function("rdma_get_all_segment_info")
-        .allowlist_function("pt_cuda_allocator_compatibility")
+        .allowlist_function("(pt_cuda_allocator_compatibility|pt_hip_allocator_compatibility)")
         .allowlist_function("register_segments")
         .allowlist_function("deregister_segments")
         .allowlist_type("ibv_.*")
@@ -97,10 +280,8 @@ fn main() {
         .allowlist_type("rdma_segment_info_t")
         .allowlist_var("MLX5_.*")
         .allowlist_var("IBV_.*")
-        // Block specific types that are manually defined in lib.rs
         .blocklist_type("ibv_wc")
         .blocklist_type("mlx5_wqe_ctrl_seg")
-        // Apply the same bindgen flags as in the BUCK file
         .bitfield_enum("ibv_access_flags")
         .bitfield_enum("ibv_qp_attr_mask")
         .bitfield_enum("ibv_wc_flags")
@@ -115,245 +296,118 @@ fn main() {
         .derive_default(true)
         .prepend_enum_name(false);
 
-    // Add CUDA include path (we already validated it exists)
-    let cuda_include_path = format!("{}/include", cuda_home);
-    println!("cargo:rustc-env=CUDA_INCLUDE_PATH={}", cuda_include_path);
-    builder = builder.clang_arg(format!("-I{}", cuda_include_path));
-
-    // Include headers and libs from the active environment.
-    let python_config = match build_utils::python_env_dirs_with_interpreter("python3") {
-        Ok(config) => config,
-        Err(_) => {
-            eprintln!("Warning: Failed to get Python environment directories");
-            build_utils::PythonConfig {
-                include_dir: None,
-                lib_dir: None,
-            }
-        }
-    };
-
-    if let Some(include_dir) = &python_config.include_dir {
-        builder = builder.clang_arg(format!("-I{}", include_dir));
+    for include_dir in &bindgen_include_dirs {
+        builder = builder.clang_arg(format!("-I{}", include_dir.display()));
     }
-    if let Some(lib_dir) = &python_config.lib_dir {
-        println!("cargo:rustc-link-search=native={}", lib_dir);
-        println!("cargo:metadata=LIB_PATH={}", lib_dir);
+    if use_rocm {
+        builder = builder.clang_arg("-D__HIP_PLATFORM_AMD__");
     }
 
-    // Get CUDA library directory and emit link directives
-    let cuda_lib_dir = match build_utils::get_cuda_lib_dir() {
-        Ok(dir) => dir,
-        Err(_) => {
-            build_utils::print_cuda_lib_error_help();
-            std::process::exit(1);
-        }
-    };
-    println!("cargo:rustc-link-search=native={}", cuda_lib_dir);
-    println!("cargo:rustc-link-lib=cuda");
-    println!("cargo:rustc-link-lib=cudart");
-
-    // Link PyTorch C++ libraries for c10 symbols
-    let use_pytorch_apis = build_utils::get_env_var_with_rerun("TORCH_SYS_USE_PYTORCH_APIS")
-        .unwrap_or_else(|_| "1".to_owned());
-    if use_pytorch_apis == "1" {
-        // Try to get PyTorch library directory
-        let python_interpreter = std::path::PathBuf::from("python");
-        if let Ok(output) = std::process::Command::new(&python_interpreter)
-            .arg("-c")
-            .arg(build_utils::PYTHON_PRINT_PYTORCH_DETAILS)
-            .output()
-        {
-            for line in String::from_utf8_lossy(&output.stdout).lines() {
-                if let Some(path) = line.strip_prefix("LIBTORCH_LIB: ") {
-                    println!("cargo:rustc-link-search=native={}", path);
-                    break;
-                }
-            }
-        }
-        // Link core PyTorch libraries needed for C10 symbols
-        println!("cargo:rustc-link-lib=torch_cpu");
-        println!("cargo:rustc-link-lib=torch");
-        println!("cargo:rustc-link-lib=c10");
-    }
-
-    // Generate bindings
     let bindings = builder.generate().expect("Unable to generate bindings");
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    bindings
+        .write_to_file(out_dir.join("bindings.rs"))
+        .expect("Couldn't write bindings!");
+    println!("cargo:out_dir={}", out_dir.display()); // Export OUT_DIR
 
-    // Write the bindings to the $OUT_DIR/bindings.rs file
-    match env::var("OUT_DIR") {
-        Ok(out_dir) => {
-            // Export OUT_DIR so dependent crates can find our compiled libraries
-            println!("cargo:out_dir={}", out_dir);
+    // --- 6. Compile C, C++, and Accelerator Code ---
 
-            let out_path = PathBuf::from(&out_dir);
-            match bindings.write_to_file(out_path.join("bindings.rs")) {
-                Ok(_) => {
-                    println!("cargo:rustc-cfg=cargo");
-                    println!("cargo:rustc-check-cfg=cfg(cargo)");
-                }
-                Err(e) => eprintln!("Warning: Couldn't write bindings: {}", e),
-            }
+    // 6a. Compile C source (generated or original file, standard compiler)
+    let mut c_build = cc::Build::new();
+    c_build
+        .file(&c_src_to_compile)
+        .include(&build_dir)
+        .include(&source_dir)
+        .include(&accelerator_include_path) // Use the simple path for cc
+        .flag("-fPIC");
 
-            // Compile the C source file
-            let c_source_path = format!("{}/src/rdmaxcel.c", manifest_dir);
-            if Path::new(&c_source_path).exists() {
-                let mut build = cc::Build::new();
-                build
-                    .file(&c_source_path)
-                    .include(format!("{}/src", manifest_dir))
-                    .flag("-fPIC");
-
-                // Add CUDA include paths - reuse the paths we already found for bindgen
-                build.include(&cuda_include_path);
-
-                build.compile("rdmaxcel");
-            } else {
-                panic!("C source file not found at {}", c_source_path);
-            }
-
-            // Compile the C++ source file for CUDA allocator compatibility
-            let cpp_source_path = format!("{}/src/rdmaxcel.cpp", manifest_dir);
-            if Path::new(&cpp_source_path).exists() {
-                let mut libtorch_include_dirs: Vec<PathBuf> = vec![];
-
-                // Use the same approach as torch-sys: Python discovery first, env vars as fallback
-                let use_pytorch_apis =
-                    build_utils::get_env_var_with_rerun("TORCH_SYS_USE_PYTORCH_APIS")
-                        .unwrap_or_else(|_| "1".to_owned());
-
-                if use_pytorch_apis == "1" {
-                    // Use Python to get PyTorch include paths (same as torch-sys)
-                    let python_interpreter = PathBuf::from("python");
-                    let output = std::process::Command::new(&python_interpreter)
-                        .arg("-c")
-                        .arg(build_utils::PYTHON_PRINT_PYTORCH_DETAILS)
-                        .output()
-                        .unwrap_or_else(|_| panic!("error running {python_interpreter:?}"));
-
-                    for line in String::from_utf8_lossy(&output.stdout).lines() {
-                        if let Some(path) = line.strip_prefix("LIBTORCH_INCLUDE: ") {
-                            libtorch_include_dirs.push(PathBuf::from(path));
-                        }
-                    }
-                } else {
-                    // Use environment variables (fallback approach)
-                    libtorch_include_dirs.extend(
-                        build_utils::get_env_var_with_rerun("LIBTORCH_INCLUDE")
-                            .unwrap_or_default()
-                            .split(':')
-                            .filter(|s| !s.is_empty())
-                            .map(PathBuf::from),
-                    );
-                }
-
-                let mut cpp_build = cc::Build::new();
-                cpp_build
-                    .file(&cpp_source_path)
-                    .include(format!("{}/src", manifest_dir))
-                    .flag("-fPIC")
-                    .cpp(true)
-                    .flag("-std=gnu++20")
-                    .define("PYTORCH_C10_DRIVER_API_SUPPORTED", "1");
-
-                // Add CUDA include paths
-                cpp_build.include(&cuda_include_path);
-
-                // Add PyTorch/C10 include paths
-                for include_dir in &libtorch_include_dirs {
-                    cpp_build.include(include_dir);
-                }
-
-                // Add Python include path if available
-                if let Some(include_dir) = &python_config.include_dir {
-                    cpp_build.include(include_dir);
-                }
-
-                cpp_build.compile("rdmaxcel_cpp");
-            } else {
-                panic!("C++ source file not found at {}", cpp_source_path);
-            }
-            // Compile the CUDA source file
-            let cuda_source_path = format!("{}/src/rdmaxcel.cu", manifest_dir);
-            if Path::new(&cuda_source_path).exists() {
-                // Use the CUDA home path we already validated
-                let nvcc_path = format!("{}/bin/nvcc", cuda_home);
-
-                // Set up fixed output directory - use a predictable path instead of dynamic OUT_DIR
-                let cuda_build_dir = format!("{}/target/cuda_build", manifest_dir);
-                std::fs::create_dir_all(&cuda_build_dir)
-                    .expect("Failed to create CUDA build directory");
-
-                let cuda_obj_path = format!("{}/rdmaxcel_cuda.o", cuda_build_dir);
-                let cuda_lib_path = format!("{}/librdmaxcel_cuda.a", cuda_build_dir);
-
-                // Use nvcc to compile the CUDA file
-                let nvcc_output = std::process::Command::new(&nvcc_path)
-                    .args(&[
-                        "-c",
-                        &cuda_source_path,
-                        "-o",
-                        &cuda_obj_path,
-                        "--compiler-options",
-                        "-fPIC",
-                        "-std=c++20",
-                        "--expt-extended-lambda",
-                        "-Xcompiler",
-                        "-fPIC",
-                        &format!("-I{}", cuda_include_path),
-                        &format!("-I{}/src", manifest_dir),
-                        &format!("-I/usr/include"),
-                        &format!("-I/usr/include/infiniband"),
-                    ])
-                    .output();
-
-                match nvcc_output {
-                    Ok(output) => {
-                        if !output.status.success() {
-                            eprintln!("nvcc stderr: {}", String::from_utf8_lossy(&output.stderr));
-                            eprintln!("nvcc stdout: {}", String::from_utf8_lossy(&output.stdout));
-                            panic!("Failed to compile CUDA source with nvcc");
-                        }
-                        println!("cargo:rerun-if-changed={}", cuda_source_path);
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to run nvcc: {}", e);
-                        panic!("nvcc not found or failed to execute");
-                    }
-                }
-
-                // Create static library from the compiled CUDA object
-                let ar_output = std::process::Command::new("ar")
-                    .args(&["rcs", &cuda_lib_path, &cuda_obj_path])
-                    .output();
-
-                match ar_output {
-                    Ok(output) => {
-                        if !output.status.success() {
-                            eprintln!("ar stderr: {}", String::from_utf8_lossy(&output.stderr));
-                            panic!("Failed to create CUDA static library with ar");
-                        }
-                        // Emit metadata so dependent crates can find this library
-                        println!("cargo:rustc-link-lib=static=rdmaxcel_cuda");
-                        println!("cargo:rustc-link-search=native={}", cuda_build_dir);
-
-                        // Copy the library to OUT_DIR as well for Cargo dependency mechanism
-                        if let Err(e) =
-                            std::fs::copy(&cuda_lib_path, format!("{}/librdmaxcel_cuda.a", out_dir))
-                        {
-                            eprintln!("Warning: Failed to copy CUDA library to OUT_DIR: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to run ar: {}", e);
-                        panic!("ar not found or failed to execute");
-                    }
-                }
-            } else {
-                panic!("CUDA source file not found at {}", cuda_source_path);
-            }
-        }
-        Err(_) => {
-            println!("Note: OUT_DIR not set, skipping bindings file generation");
-        }
+    if use_rocm {
+        c_build.define("__HIP_PLATFORM_AMD__", None);
     }
+    c_build.compile("rdmaxcel");
+
+    // 6b. Compile C++ source (generated or original file, standard compiler)
+    let torch_includes = get_pytorch_includes();
+
+    let mut cpp_build = cc::Build::new();
+    cpp_build
+        .file(&cpp_src_to_compile) // <-- Uses generated or original .cpp
+        .include(&build_dir)
+        .include(&source_dir)
+        .include(&accelerator_include_path) // Use the simple path for cc
+        .flag("-fPIC")
+        .cpp(true)
+        .flag("-std=gnu++20")
+        .define("PYTORCH_C10_DRIVER_API_SUPPORTED", "1");
+
+    // Add PyTorch/C10 include paths
+    for include_path in &torch_includes {
+        cpp_build.include(include_path);
+    }
+
+    if use_rocm {
+        cpp_build.define("__HIP_PLATFORM_AMD__", None);
+    }
+    cpp_build.compile("rdmaxcel_cpp");
+
+    // 6c. Compile Accelerator source (generated or original, platform compiler)
+    let compiler_path = PathBuf::from(&accelerator_home)
+        .join("bin")
+        .join(compiler_name);
+    let obj_path = build_dir.join(format!("rdmaxcel_{}.o", lib_name_suffix));
+    let lib_path = build_dir.join(format!("librdmaxcel_{}.a", lib_name_suffix));
+
+    let mut compile_cmd = Command::new(&compiler_path);
+    compile_cmd
+        .arg("-c")
+        .arg(&accel_src_to_compile) // <-- Uses generated .hip or original .cu
+        .arg("-o")
+        .arg(&obj_path)
+        .arg("-fPIC")
+        .arg("-std=c++20")
+        .arg(format!("-I{}", accelerator_include_path)) // Use simple path for hipcc
+        .arg(format!("-I{}", source_dir.display()))
+        .arg("-I/usr/include")
+        .arg("-I/usr/include/infiniband");
+
+    if use_rocm {
+        compile_cmd.args(["-Xcompiler", "-fPIC"]);
+    } else {
+        compile_cmd.args(["--compiler-options", "-fPIC", "--expt-extended-lambda"]);
+    }
+
+    let compile_output = compile_cmd.output().unwrap_or_else(|e| {
+        panic!("Failed to run compiler {}: {}", compiler_path.display(), e);
+    });
+    if !compile_output.status.success() {
+        panic!(
+            "Compiler failed: {} \nStderr: {}\nStdout: {}",
+            compiler_path.display(),
+            String::from_utf8_lossy(&compile_output.stderr),
+            String::from_utf8_lossy(&compile_output.stdout)
+        );
+    }
+
+    // Archive the compiled object
+    let ar_output = Command::new("ar")
+        .args(["rcs", &lib_path.to_string_lossy(), &obj_path.to_string_lossy()])
+        .output()
+        .expect("Failed to run 'ar'");
+
+    if !ar_output.status.success() {
+        panic!(
+            "'ar' failed: {}",
+            String::from_utf8_lossy(&ar_output.stderr)
+        );
+    }
+
+    // --- 7. Final Link Directives ---
+    println!("cargo:rustc-link-search=native={}", build_dir.display());
+    println!("cargo:rustc-link-lib=static=rdmaxcel_{}", lib_name_suffix);
+    // Copy lib to OUT_DIR so dependent crates can find it
+    std::fs::copy(
+        &lib_path,
+        out_dir.join(format!("librdmaxcel_{}.a", lib_name_suffix)),
+    )
+    .expect("Failed to copy lib to OUT_DIR");
 }

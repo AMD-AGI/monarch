@@ -5,8 +5,12 @@
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree.
  */
-
 #pragma once
 
-#include <cuda.h>
-#include <cuda_runtime.h>
+#ifdef __HIP_PLATFORM_AMD__
+    #include <hip/hip_runtime.h>
+    #include <hip/hip_runtime_api.h>
+#else
+    #include <cuda.h>
+    #include <cuda_runtime.h>
+#endif

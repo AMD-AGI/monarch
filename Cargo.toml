@@ -2,9 +2,8 @@
 resolver = "2"
 members = [
     "controller",
-    "cuda-sys",
+    "accelerator-sys",
     "erased_lifetime",
-    "hip-sys",
     "hyper",
     "hyperactor",
     "hyperactor_macros",
@@ -16,9 +15,11 @@ members = [
     "monarch_tensor_worker",
     "monarch_rdma",
     "monarch_rdma_auto",
-    "monarch_rdma_hip",
     "nccl-sys",
     "rdmaxcel-sys",
-    "rdmaxcel-sys-hip",
     "torch-sys",
+    "torch-sys-accel",
 ]
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(rocm)", "cfg(cuda)"] }

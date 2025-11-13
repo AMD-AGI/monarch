@@ -29,10 +29,6 @@
 use std::ffi::CStr;
 use std::fmt;
 
-// Import the conditionally re-exported sys crates
-use crate::cuda_sys;
-use crate::rdmaxcel_sys;
-
 use hyperactor::Named;
 use serde::Deserialize;
 use serde::Serialize;
@@ -64,29 +60,29 @@ impl Gid {
         u64::from_be_bytes(self.raw[8..].try_into().unwrap())
     }
 }
-impl From<rdmaxcel_sys::ibv_gid> for Gid {
-    fn from(gid: rdmaxcel_sys::ibv_gid) -> Self {
+impl From<rdmaxcel_sys_hip::ibv_gid> for Gid {
+    fn from(gid: rdmaxcel_sys_hip::ibv_gid) -> Self {
         Self {
             raw: unsafe { gid.raw },
         }
     }
 }
 
-impl From<Gid> for rdmaxcel_sys::ibv_gid {
+impl From<Gid> for rdmaxcel_sys_hip::ibv_gid {
     fn from(mut gid: Gid) -> Self {
         *gid.as_mut()
     }
 }
 
-impl AsRef<rdmaxcel_sys::ibv_gid> for Gid {
-    fn as_ref(&self) -> &rdmaxcel_sys::ibv_gid {
-        unsafe { &*self.raw.as_ptr().cast::<rdmaxcel_sys::ibv_gid>() }
+impl AsRef<rdmaxcel_sys_hip::ibv_gid> for Gid {
+    fn as_ref(&self) -> &rdmaxcel_sys_hip::ibv_gid {
+        unsafe { &*self.raw.as_ptr().cast::<rdmaxcel_sys_hip::ibv_gid>() }
     }
 }
 
-impl AsMut<rdmaxcel_sys::ibv_gid> for Gid {
-    fn as_mut(&mut self) -> &mut rdmaxcel_sys::ibv_gid {
-        unsafe { &mut *self.raw.as_mut_ptr().cast::<rdmaxcel_sys::ibv_gid>() }
+impl AsMut<rdmaxcel_sys_hip::ibv_gid> for Gid {
+    fn as_mut(&mut self) -> &mut rdmaxcel_sys_hip::ibv_gid {
+        unsafe { &mut *self.raw.as_mut_ptr().cast::<rdmaxcel_sys_hip::ibv_gid>() }
     }
 }
 
@@ -152,7 +148,7 @@ impl Default for IbverbsConfig {
             max_recv_wr: 512,
             max_send_sge: 30,
             max_recv_sge: 30,
-            path_mtu: rdmaxcel_sys::IBV_MTU_4096,
+            path_mtu: rdmaxcel_sys_hip::IBV_MTU_4096,
             retry_cnt: 7,
             rnr_retry: 7,
             qp_timeout: 14, // 4.096 μs * 2^14 = ~67 ms
@@ -442,10 +438,10 @@ impl fmt::Display for RdmaPort {
 /// # Returns
 ///
 /// A string representation of the port state.
-pub fn get_port_state_str(state: rdmaxcel_sys::ibv_port_state::Type) -> String {
+pub fn get_port_state_str(state: rdmaxcel_sys_hip::ibv_port_state::Type) -> String {
     // SAFETY: We are calling a C function that returns a C string.
     unsafe {
-        let c_str = rdmaxcel_sys::ibv_port_state_str(state);
+        let c_str = rdmaxcel_sys_hip::ibv_port_state_str(state);
         if c_str.is_null() {
             return "Unknown".to_string();
         }
@@ -540,7 +536,7 @@ pub fn get_all_devices() -> Vec<RdmaDevice> {
     // SAFETY: We are calling several C functions from libibverbs.
     unsafe {
         let mut num_devices = 0;
-        let device_list = rdmaxcel_sys::ibv_get_device_list(&mut num_devices);
+        let device_list = rdmaxcel_sys_hip::ibv_get_device_list(&mut num_devices);
         if device_list.is_null() || num_devices == 0 {
             return devices;
         }
@@ -551,18 +547,18 @@ pub fn get_all_devices() -> Vec<RdmaDevice> {
                 continue;
             }
 
-            let context = rdmaxcel_sys::ibv_open_device(device);
+            let context = rdmaxcel_sys_hip::ibv_open_device(device);
             if context.is_null() {
                 continue;
             }
 
-            let device_name = CStr::from_ptr(rdmaxcel_sys::ibv_get_device_name(device))
+            let device_name = CStr::from_ptr(rdmaxcel_sys_hip::ibv_get_device_name(device))
                 .to_string_lossy()
                 .into_owned();
 
-            let mut device_attr = rdmaxcel_sys::ibv_device_attr::default();
-            if rdmaxcel_sys::ibv_query_device(context, &mut device_attr) != 0 {
-                rdmaxcel_sys::ibv_close_device(context);
+            let mut device_attr = rdmaxcel_sys_hip::ibv_device_attr::default();
+            if rdmaxcel_sys_hip::ibv_query_device(context, &mut device_attr) != 0 {
+                rdmaxcel_sys_hip::ibv_close_device(context);
                 continue;
             }
 
@@ -587,11 +583,11 @@ pub fn get_all_devices() -> Vec<RdmaDevice> {
             };
 
             for port_num in 1..=device_attr.phys_port_cnt {
-                let mut port_attr = rdmaxcel_sys::ibv_port_attr::default();
-                if rdmaxcel_sys::ibv_query_port(
+                let mut port_attr = rdmaxcel_sys_hip::ibv_port_attr::default();
+                if rdmaxcel_sys_hip::ibv_query_port(
                     context,
                     port_num,
-                    &mut port_attr as *mut rdmaxcel_sys::ibv_port_attr as *mut _,
+                    &mut port_attr as *mut rdmaxcel_sys_hip::ibv_port_attr as *mut _,
                 ) != 0
                 {
                     continue;
@@ -601,8 +597,8 @@ pub fn get_all_devices() -> Vec<RdmaDevice> {
 
                 let link_layer = get_link_layer_str(port_attr.link_layer);
 
-                let mut gid = rdmaxcel_sys::ibv_gid::default();
-                let gid_str = if rdmaxcel_sys::ibv_query_gid(context, port_num, 0, &mut gid) == 0 {
+                let mut gid = rdmaxcel_sys_hip::ibv_gid::default();
+                let gid_str = if rdmaxcel_sys_hip::ibv_query_gid(context, port_num, 0, &mut gid) == 0 {
                     format_gid(&gid.raw)
                 } else {
                     "N/A".to_string()
@@ -625,10 +621,10 @@ pub fn get_all_devices() -> Vec<RdmaDevice> {
             }
 
             devices.push(rdma_device);
-            rdmaxcel_sys::ibv_close_device(context);
+            rdmaxcel_sys_hip::ibv_close_device(context);
         }
 
-        rdmaxcel_sys::ibv_free_device_list(device_list);
+        rdmaxcel_sys_hip::ibv_free_device_list(device_list);
     }
 
     devices
@@ -647,9 +643,9 @@ pub fn ibverbs_supported() -> bool {
     // SAFETY: We are calling a C function from libibverbs.
     unsafe {
         let mut num_devices = 0;
-        let device_list = rdmaxcel_sys::ibv_get_device_list(&mut num_devices);
+        let device_list = rdmaxcel_sys_hip::ibv_get_device_list(&mut num_devices);
         if !device_list.is_null() {
-            rdmaxcel_sys::ibv_free_device_list(device_list);
+            rdmaxcel_sys_hip::ibv_free_device_list(device_list);
         }
         num_devices > 0
     }
@@ -755,22 +751,22 @@ pub enum RdmaOperation {
     Recv,
 }
 
-impl From<RdmaOperation> for rdmaxcel_sys::ibv_wr_opcode::Type {
+impl From<RdmaOperation> for rdmaxcel_sys_hip::ibv_wr_opcode::Type {
     fn from(op: RdmaOperation) -> Self {
         match op {
-            RdmaOperation::Write => rdmaxcel_sys::ibv_wr_opcode::IBV_WR_RDMA_WRITE,
-            RdmaOperation::WriteWithImm => rdmaxcel_sys::ibv_wr_opcode::IBV_WR_RDMA_WRITE_WITH_IMM,
-            RdmaOperation::Read => rdmaxcel_sys::ibv_wr_opcode::IBV_WR_RDMA_READ,
+            RdmaOperation::Write => rdmaxcel_sys_hip::ibv_wr_opcode::IBV_WR_RDMA_WRITE,
+            RdmaOperation::WriteWithImm => rdmaxcel_sys_hip::ibv_wr_opcode::IBV_WR_RDMA_WRITE_WITH_IMM,
+            RdmaOperation::Read => rdmaxcel_sys_hip::ibv_wr_opcode::IBV_WR_RDMA_READ,
             RdmaOperation::Recv => panic!("Invalid wr opcode"),
         }
     }
 }
 
-impl From<rdmaxcel_sys::ibv_wc_opcode::Type> for RdmaOperation {
-    fn from(op: rdmaxcel_sys::ibv_wc_opcode::Type) -> Self {
+impl From<rdmaxcel_sys_hip::ibv_wc_opcode::Type> for RdmaOperation {
+    fn from(op: rdmaxcel_sys_hip::ibv_wc_opcode::Type) -> Self {
         match op {
-            rdmaxcel_sys::ibv_wc_opcode::IBV_WC_RDMA_WRITE => RdmaOperation::Write,
-            rdmaxcel_sys::ibv_wc_opcode::IBV_WC_RDMA_READ => RdmaOperation::Read,
+            rdmaxcel_sys_hip::ibv_wc_opcode::IBV_WC_RDMA_WRITE => RdmaOperation::Write,
+            rdmaxcel_sys_hip::ibv_wc_opcode::IBV_WC_RDMA_READ => RdmaOperation::Read,
             _ => panic!("Unsupported operation type"),
         }
     }
@@ -805,7 +801,7 @@ impl std::fmt::Debug for RdmaQpInfo {
 
 /// Wrapper around ibv_wc (ibverbs work completion).
 ///
-/// This exposes only the public fields of rdmaxcel_sys::ibv_wc, allowing us to more easily
+/// This exposes only the public fields of rdmaxcel_sys_hip::ibv_wc, allowing us to more easily
 /// interact with it from Rust. Work completions are used to track the status of
 /// RDMA operations and are generated when an operation completes.
 #[derive(Debug, Named, Clone, serde::Serialize, serde::Deserialize)]
@@ -817,9 +813,9 @@ pub struct IbvWc {
     /// `valid` - Whether the work completion is valid
     valid: bool,
     /// `error` - Error information if the operation failed
-    error: Option<(rdmaxcel_sys::ibv_wc_status::Type, u32)>,
+    error: Option<(rdmaxcel_sys_hip::ibv_wc_status::Type, u32)>,
     /// `opcode` - Type of operation that completed (read, write, etc.)
-    opcode: rdmaxcel_sys::ibv_wc_opcode::Type,
+    opcode: rdmaxcel_sys_hip::ibv_wc_opcode::Type,
     /// `bytes` - Immediate data (if any)
     bytes: Option<u32>,
     /// `qp_num` - Queue Pair Number
@@ -836,8 +832,8 @@ pub struct IbvWc {
     dlid_path_bits: u8,
 }
 
-impl From<rdmaxcel_sys::ibv_wc> for IbvWc {
-    fn from(wc: rdmaxcel_sys::ibv_wc) -> Self {
+impl From<rdmaxcel_sys_hip::ibv_wc> for IbvWc {
+    fn from(wc: rdmaxcel_sys_hip::ibv_wc) -> Self {
         IbvWc {
             wr_id: wc.wr_id(),
             len: wc.len(),
@@ -957,21 +953,21 @@ mod tests {
     #[test]
     fn test_rdma_operation_conversion() {
         assert_eq!(
-            rdmaxcel_sys::ibv_wr_opcode::IBV_WR_RDMA_WRITE,
-            rdmaxcel_sys::ibv_wr_opcode::Type::from(RdmaOperation::Write)
+            rdmaxcel_sys_hip::ibv_wr_opcode::IBV_WR_RDMA_WRITE,
+            rdmaxcel_sys_hip::ibv_wr_opcode::Type::from(RdmaOperation::Write)
         );
         assert_eq!(
-            rdmaxcel_sys::ibv_wr_opcode::IBV_WR_RDMA_READ,
-            rdmaxcel_sys::ibv_wr_opcode::Type::from(RdmaOperation::Read)
+            rdmaxcel_sys_hip::ibv_wr_opcode::IBV_WR_RDMA_READ,
+            rdmaxcel_sys_hip::ibv_wr_opcode::Type::from(RdmaOperation::Read)
         );
 
         assert_eq!(
             RdmaOperation::Write,
-            RdmaOperation::from(rdmaxcel_sys::ibv_wc_opcode::IBV_WC_RDMA_WRITE)
+            RdmaOperation::from(rdmaxcel_sys_hip::ibv_wc_opcode::IBV_WC_RDMA_WRITE)
         );
         assert_eq!(
             RdmaOperation::Read,
-            RdmaOperation::from(rdmaxcel_sys::ibv_wc_opcode::IBV_WC_RDMA_READ)
+            RdmaOperation::from(rdmaxcel_sys_hip::ibv_wc_opcode::IBV_WC_RDMA_READ)
         );
     }
 
@@ -992,18 +988,18 @@ mod tests {
 
     #[test]
     fn test_ibv_wc() {
-        let mut wc = rdmaxcel_sys::ibv_wc::default();
+        let mut wc = rdmaxcel_sys_hip::ibv_wc::default();
 
         // SAFETY: modifies private fields through pointer manipulation
         unsafe {
             // Cast to pointer and modify the fields directly
-            let wc_ptr = &mut wc as *mut rdmaxcel_sys::ibv_wc as *mut u8;
+            let wc_ptr = &mut wc as *mut rdmaxcel_sys_hip::ibv_wc as *mut u8;
 
             // Set wr_id (at offset 0, u64)
             *(wc_ptr as *mut u64) = 42;
 
             // Set status to SUCCESS (at offset 8, u32)
-            *(wc_ptr.add(8) as *mut i32) = rdmaxcel_sys::ibv_wc_status::IBV_WC_SUCCESS as i32;
+            *(wc_ptr.add(8) as *mut i32) = rdmaxcel_sys_hip::ibv_wc_status::IBV_WC_SUCCESS as i32;
         }
         let ibv_wc = IbvWc::from(wc);
         assert_eq!(ibv_wc.wr_id(), 42);
