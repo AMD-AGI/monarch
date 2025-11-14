@@ -26,10 +26,6 @@ fi
 
 echo "[P${HYPERACTOR_MESH_INDEX}] Executing in container"
 
-
-#echo "bash command: LD_LIBRARY_PATH=/opt/ompi/lib:/opt/rocm/lib:/usr/local/lib::/opt/rocm/lib/:/usr/lib/x86_64-linux-gnu/ python $1 \"$2\" "
-
-
 # No need to activate external conda enviornment if we use Docker which already has Monarch installed
 docker exec \
  --env HYPERACTOR_MESH_BOOTSTRAP_ADDR=${HYPERACTOR_MESH_BOOTSTRAP_ADDR} \
