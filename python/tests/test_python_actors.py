@@ -1412,11 +1412,6 @@ def test_mesh_len():
     proc_mesh = fake_in_process_host().spawn_procs(per_host={"gpus": 12})
     s = proc_mesh.spawn("sleep_actor", SleepActor)
     assert 12 == len(s)
-    # FIXME: Actually figure out what's going on here.
-    # Call an endpoint on the actor before the test
-    # exits. Otherwise we might get a fatal PyGILState_Release
-    # error.
-    s.sleep.call(1).get()
 
 
 class UndeliverableMessageReceiver(Actor):
@@ -1691,3 +1686,48 @@ def test_login_job():
             assert v == "hello!"
 
         j.kill()
+
+
+_global_foo = None
+
+
+def setup_with_spawn() -> None:
+    global _global_foo
+    proc = this_proc()
+    # Doesn't matter which actor is spawned, just make sure it persists.
+    _global_foo = proc.spawn("foo", Counter, 0)
+    _global_foo.incr.call().get()
+    # Spawn one that dies to make sure it doesn't cause any issues.
+    bar = proc.spawn("bar", Counter, 0)
+    bar.incr.call().get()
+
+
+async def async_setup_with_spawn() -> None:
+    global _global_foo
+    proc = this_proc()
+    # Doesn't matter which actor is spawned, just make sure it persists.
+    _global_foo = proc.spawn("foo", Counter, 0)
+    await _global_foo.incr.call()
+    # Spawn one that dies to make sure it doesn't cause any issues.
+    bar = proc.spawn("bar", Counter, 0)
+    await bar.incr.call()
+
+
+# oss_skip: passes internally but fails on CI with "ValueError: error spawning proc mesh: statuses: Timeout(30.000905376s)=0..1"
+@pytest.mark.oss_skip
+def test_setup() -> None:
+    procs = this_host().spawn_procs(bootstrap=setup_with_spawn)
+    counter = procs.spawn("counter", Counter, 0)
+    counter.incr.call().get()
+    # Make sure no errors occur in the meantime
+    time.sleep(10)
+
+
+# oss_skip: passes internally but fails on CI with "ValueError: error spawning proc mesh: statuses: Timeout(30.000905376s)=0..1"
+@pytest.mark.oss_skip
+def test_setup_async() -> None:
+    procs = this_host().spawn_procs(bootstrap=async_setup_with_spawn)
+    counter = procs.spawn("counter", Counter, 0)
+    counter.incr.call().get()
+    # Make sure no errors occur in the meantime
+    time.sleep(10)

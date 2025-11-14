@@ -7,7 +7,9 @@ export NCCL_IB_HCA=${NCCL_IB_HCA:="bnxt_re0,bnxt_re1,bnxt_re2,bnxt_re3,bnxt_re4,
 
 # Use hostname to identify the container for this node
 CONTAINER_NAME="monarch_node_$(hostname)_${USER}"
+
 echo "[P${HYPERACTOR_MESH_INDEX}] Starting on $(hostname), container: ${CONTAINER_NAME}"
+
 
 docker ps --format '{{.Names}}'
 
@@ -34,10 +36,9 @@ docker exec \
  /bin/bash -c \
  "echo \$(date) [Process ${HYPERACTOR_MESH_INDEX}] ; \
  echo \$(date) [Process ${HYPERACTOR_MESH_INDEX}]: ${HYPERACTOR_MESH_BOOTSTRAP_ADDR} ; \
-   LD_LIBRARY_PATH=/opt/ompi/lib:/opt/rocm/lib:/usr/local/lib::/opt/rocm/lib/:/usr/lib/x86_64-linux-gnu/ monarch_bootstrap; \
-  echo \$(date) [P${HYPERACTOR_MESH_INDEX}] Completed"
-
-
+ echo '$2' > /tmp/custom_bootstrap_exec.py ;
+ LD_LIBRARY_PATH=/opt/ompi/lib:/opt/rocm/lib:/usr/local/lib::/opt/rocm/lib/:/usr/lib/x86_64-linux-gnu/ python /tmp/custom_bootstrap_exec.py
+ echo \$(date) [P${HYPERACTOR_MESH_INDEX}] Completed"
 
 
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
