@@ -26,7 +26,7 @@ from monarch.utils import setup_env_for_distributed
 
 from slurm.utils import get_appdef, get_server_info, create_proc_mesh
 
-num_nodes = 1 # assign for your system
+num_nodes = 2 # assign for your system
 MONARCH_EXAMPLE_FOLDER=os.getcwd()
 os.environ["MONARCH_EXAMPLE_FOLDER"]=MONARCH_EXAMPLE_FOLDER
 
