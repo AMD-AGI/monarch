@@ -15,6 +15,12 @@
 #include <set>
 #include <unordered_map>
 
+// Include HSA headers for ROCm 6.x dmabuf support
+#ifdef USE_ROCM
+#include <hsa/hsa.h>
+#include <hsa/hsa_ext_amd.h>
+#endif
+
 // MR size must be a multiple of 2MB
 const size_t MR_ALIGNMENT = 2ULL * 1024 * 1024;
 
@@ -340,6 +346,111 @@ int register_segments(struct ibv_pd* pd, struct ibv_qp* qp) {
     }
   }
   return 0; // Success
+}
+
+// Register a single GPU memory buffer using dmabuf (for Standard QP)
+// This is used for non-MLX5DV queue pairs
+int register_dmabuf_buffer(
+    struct ibv_pd* pd,
+    void* addr,
+    size_t size,
+    uint32_t* lkey_out,
+    uint32_t* rkey_out,
+    struct ibv_mr** mr_out) {
+
+  if (!pd || !addr || size == 0 || !lkey_out || !rkey_out || !mr_out) {
+    return RDMAXCEL_INVALID_PARAMS;
+  }
+
+#ifdef USE_ROCM
+  int fd = -1;
+  uint64_t offset = 0;
+
+  // Determine which dmabuf API to use based on ROCm version
+#ifdef ROCM_7_PLUS
+  // ROCm 7.0+: Use HIP dmabuf API
+  hipError_t hip_result = hipMemGetHandleForAddressRange(
+      &fd,
+      reinterpret_cast<hipDeviceptr_t>(addr),
+      size,
+      hipMemRangeHandleTypeDmaBufFd,
+      0);
+  if (hip_result != hipSuccess || fd < 0) {
+    fprintf(stderr, "[RdmaXcel] hipMemGetHandleForAddressRange failed with status %d, fd %d\n",
+            hip_result, fd);
+    return RDMAXCEL_DMABUF_HANDLE_FAILED;
+  }
+#else
+  // ROCm 6.x: Use HSA dmabuf API
+  // Note: HSA runtime should already be initialized by HIP runtime
+  hsa_status_t hsa_result = hsa_amd_portable_export_dmabuf(
+      addr,
+      size,
+      &fd,
+      &offset);
+  if (hsa_result != HSA_STATUS_SUCCESS || fd < 0) {
+    fprintf(stderr, "[RdmaXcel] hsa_amd_portable_export_dmabuf failed with status %d for addr %p, size %zu\n",
+            hsa_result, addr, size);
+    return RDMAXCEL_DMABUF_HANDLE_FAILED;
+  }
+#endif
+
+  // Register the dmabuf with ibverbs
+  int access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+  struct ibv_mr* mr = ibv_reg_dmabuf_mr(
+      pd,
+      offset,
+      size,
+      reinterpret_cast<uintptr_t>(addr),
+      fd,
+      access_flags);
+  close(fd); // Close fd after registration
+
+  if (!mr) {
+    fprintf(stderr, "[RdmaXcel] ibv_reg_dmabuf_mr failed\n");
+    return RDMAXCEL_MR_REGISTRATION_FAILED;
+  }
+
+  // Fill output parameters
+  *lkey_out = mr->lkey;
+  *rkey_out = mr->rkey;
+  *mr_out = mr;
+
+  return 0; // Success
+
+#else
+  // CUDA path: Use CUDA dmabuf API
+  int fd = -1;
+  CUresult cu_result = cuMemGetHandleForAddressRange(
+      &fd,
+      static_cast<CUdeviceptr>(reinterpret_cast<uintptr_t>(addr)),
+      size,
+      CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD,
+      0);
+
+  if (cu_result != CUDA_SUCCESS || fd < 0) {
+    fprintf(stderr, "[RdmaXcel] cuMemGetHandleForAddressRange failed with status %d, fd %d\n",
+            cu_result, fd);
+    return RDMAXCEL_DMABUF_HANDLE_FAILED;
+  }
+
+  // Register the dmabuf with ibverbs
+  int access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+  struct ibv_mr* mr = ibv_reg_dmabuf_mr(pd, 0, size, 0, fd, access_flags);
+  close(fd);
+
+  if (!mr) {
+    fprintf(stderr, "[RdmaXcel] ibv_reg_dmabuf_mr failed\n");
+    return RDMAXCEL_MR_REGISTRATION_FAILED;
+  }
+
+  // Fill output parameters
+  *lkey_out = mr->lkey;
+  *rkey_out = mr->rkey;
+  *mr_out = mr;
+
+  return 0; // Success
+#endif
 }
 
 // Get PCI address from CUDA pointer
