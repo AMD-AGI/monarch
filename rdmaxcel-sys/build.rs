@@ -25,46 +25,99 @@ fn find_python_interpreter() -> PathBuf {
         })
 }
 
-/// Post-processes hipified files to fix remaining CUDA references and add version checks
-fn patch_hipified_files(hip_src_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    println!("cargo:warning=Patching hipify_torch output...");
+/// Detects ROCm version and returns (major, minor) or None if not found
+fn get_rocm_version(rocm_home: &str) -> Option<(u32, u32)> {
+    // Try to read ROCm version from .info/version file
+    let version_file = PathBuf::from(rocm_home).join(".info").join("version");
+    if let Ok(content) = fs::read_to_string(&version_file) {
+        let trimmed = content.trim();
+        if let Some((major_str, rest)) = trimmed.split_once('.') {
+            if let Some((minor_str, _)) = rest.split_once('.') {
+                if let (Ok(major), Ok(minor)) = (major_str.parse::<u32>(), minor_str.parse::<u32>())
+                {
+                    println!(
+                        "cargo:warning=Detected ROCm version {}.{} from {}",
+                        major,
+                        minor,
+                        version_file.display()
+                    );
+                    return Some((major, minor));
+                }
+            }
+        }
+    }
+
+    // Fallback: try hipcc --version
+    let hipcc_path = format!("{}/bin/hipcc", rocm_home);
+    if let Ok(output) = Command::new(&hipcc_path).arg("--version").output() {
+        let version_output = String::from_utf8_lossy(&output.stdout);
+        // Look for version pattern like "HIP version: 6.2.41134"
+        for line in version_output.lines() {
+            if line.contains("HIP version:") {
+                if let Some(version_part) = line.split("HIP version:").nth(1) {
+                    let version_str = version_part.trim();
+                    if let Some((major_str, rest)) = version_str.split_once('.') {
+                        if let Some((minor_str, _)) = rest.split_once('.') {
+                            if let (Ok(major), Ok(minor)) =
+                                (major_str.parse::<u32>(), minor_str.parse::<u32>())
+                            {
+                                println!(
+                                    "cargo:warning=Detected ROCm version {}.{} from hipcc",
+                                    major, minor
+                                );
+                                return Some((major, minor));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    println!("cargo:warning=Could not detect ROCm version, assuming 6.x");
+    Some((6, 0)) // Default to 6.0 if we can't detect
+}
+
+/// Post-processes hipified files for ROCm 7.0+
+fn patch_hipified_files_rocm7(hip_src_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo:warning=Patching hipify_torch output for ROCm 7.0+...");
 
     // --- Patch the C++ file ---
     let cpp_file = hip_src_dir.join("rdmaxcel_hip.cpp");
     if cpp_file.exists() {
         let content = fs::read_to_string(&cpp_file)?;
 
-        let mut patched_content = content
+        let patched_content = content
             // Add version header
             .replace(
                 "#include <hip/hip_runtime.h>",
                 "#include <hip/hip_runtime.h>\n#include <hip/hip_version.h>",
             )
-            // CRITICAL: Keep c10/cuda paths for PyTorch ROCm compatibility
-            // Do NOT change these to c10/hip!
+            // Fix PyTorch allocator namespace
             .replace(
-                "#include <c10/hip/HIPAllocatorConfig.h>",
-                "#include <c10/cuda/CUDAAllocatorConfig.h>",
+                "c10::cuda::CUDACachingAllocator",
+                "c10::hip::HIPCachingAllocator",
             )
             .replace(
-                "#include <c10/hip/HIPCachingAllocator.h>",
-                "#include <c10/cuda/CUDACachingAllocator.h>",
+                "c10::cuda::CUDAAllocatorConfig",
+                "c10::hip::HIPAllocatorConfig",
             )
-            .replace("c10::hip::", "c10::cuda::")
-            // Fix function names
+            // Fix nested class names that may have been partially converted
             .replace(
-                "pt_cuda_allocator_compatibility",
-                "pt_hip_allocator_compatibility",
+                "c10::hip::HIPCachingAllocator::CUDAAllocatorConfig",
+                "c10::hip::HIPCachingAllocator::HIPAllocatorConfig",
             )
-            .replace(
-                "get_cuda_pci_address_from_ptr",
-                "get_hip_pci_address_from_ptr",
-            )
-            .replace("register_cuda_memory", "register_hip_memory")
+            .replace("CUDAAllocatorConfig::", "HIPAllocatorConfig::")
+            // NOTE: We do NOT rename custom rdmaxcel functions
+            // They keep their CUDA names for backward compatibility
             // Fix HIP API issues
             .replace(
                 "hipDeviceAttributePciDomainId",
                 "hipDeviceAttributePciDomainID",
+            )
+            .replace(
+                "static_cast<CUdeviceptr>",
+                "reinterpret_cast<hipDeviceptr_t>",
             )
             .replace(
                 "static_cast<hipDeviceptr_t>",
@@ -77,7 +130,9 @@ fn patch_hipified_files(hip_src_dir: &Path) -> Result<(), Box<dyn std::error::Er
             .replace(
                 "cuMemGetHandleForAddressRange",
                 "hipMemGetHandleForAddressRange",
-            );
+            )
+            .replace("CUDA_SUCCESS", "hipSuccess")
+            .replace("CUresult", "hipError_t");
 
         fs::write(&cpp_file, patched_content)?;
     }
@@ -87,21 +142,150 @@ fn patch_hipified_files(hip_src_dir: &Path) -> Result<(), Box<dyn std::error::Er
     if header_file.exists() {
         let content = fs::read_to_string(&header_file)?;
         let patched_content = content
-            .replace("register_cuda_memory", "register_hip_memory")
-            .replace(
-                "pt_cuda_allocator_compatibility",
-                "pt_hip_allocator_compatibility",
-            )
-            .replace(
-                "get_cuda_pci_address_from_ptr",
-                "get_hip_pci_address_from_ptr",
-            )
+            // Only fix CUDA API types, not custom function names
             .replace("CUdeviceptr", "hipDeviceptr_t");
 
         fs::write(&header_file, patched_content)?;
     }
 
-    println!("cargo:warning=Applied post-processing fixes to hipified files");
+    println!("cargo:warning=Applied ROCm 7.0+ post-processing fixes to hipified files");
+    Ok(())
+}
+
+/// Post-processes files for ROCm 6.x (uses HSA dmabuf instead of HIP dmabuf)
+fn patch_hipified_files_rocm6(hip_src_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo:warning=Patching hipify_torch output for ROCm 6.x (HSA dmabuf)...");
+
+    // --- Patch the C++ file ---
+    let cpp_file = hip_src_dir.join("rdmaxcel_hip.cpp");
+    if cpp_file.exists() {
+        let content = fs::read_to_string(&cpp_file)?;
+
+        let mut patched_content = content
+            // Add version and HSA headers at the top
+            .replace(
+                "#include <hip/hip_runtime.h>",
+                "#include <hip/hip_runtime.h>\n#include <hip/hip_version.h>\n#include <hsa/hsa.h>\n#include <hsa/hsa_ext_amd.h>"
+            )
+            // Fix PyTorch allocator namespace: c10::cuda → c10::hip
+            .replace("c10::cuda::CUDACachingAllocator", "c10::hip::HIPCachingAllocator")
+            .replace("c10::cuda::CUDAAllocatorConfig", "c10::hip::HIPAllocatorConfig")
+            // Fix nested class names that may have been partially converted
+            .replace("c10::hip::HIPCachingAllocator::CUDAAllocatorConfig", "c10::hip::HIPCachingAllocator::HIPAllocatorConfig")
+            .replace("CUDAAllocatorConfig::", "HIPAllocatorConfig::")
+
+            // NOTE: We do NOT rename custom rdmaxcel functions like:
+            // - register_cuda_memory (stays as-is)
+            // - pt_cuda_allocator_compatibility (stays as-is)
+            // - get_cuda_pci_address_from_ptr (stays as-is)
+            // These are user-defined functions, not CUDA API calls
+
+            // Fix HIP API attribute names
+            .replace("hipDeviceAttributePciDomainId", "hipDeviceAttributePciDomainID")
+
+            // Fix pointer casts for HIP
+            .replace("static_cast<CUdeviceptr>", "reinterpret_cast<hipDeviceptr_t>")
+            .replace("static_cast<hipDeviceptr_t>", "reinterpret_cast<hipDeviceptr_t>")
+
+            // Replace CUDA types with HIP types
+            .replace("CUDA_SUCCESS", "hipSuccess")
+            .replace("CUdevice device", "hipDevice_t device")
+
+            // Fix device functions
+            .replace("cuDeviceGet(&device", "hipDeviceGet(&device")
+            .replace("cuDeviceGetAttribute", "hipDeviceGetAttribute")
+            .replace("cuPointerGetAttribute", "hipPointerGetAttribute")
+
+            // Fix device attribute constants
+            .replace("CU_DEVICE_ATTRIBUTE_PCI_BUS_ID", "hipDeviceAttributePciBusId")
+            .replace("CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID", "hipDeviceAttributePciDeviceId")
+            .replace("CU_DEVICE_ATTRIBUTE_PCI_DOMAIN_ID", "hipDeviceAttributePciDomainID")
+            .replace("CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL", "HIP_POINTER_ATTRIBUTE_DEVICE_ORDINAL")
+
+            // Remove CUDA-specific constants
+            .replace("CU_MEM_RANGE_HANDLE_TYPE_DMA_BUF_FD", "/* removed - using HSA dmabuf */");
+
+        // Critical: Replace cuMemGetHandleForAddressRange with HSA dmabuf calls
+        // This needs to handle the parameter reordering properly
+
+        // First, replace the function name globally
+        patched_content = patched_content.replace(
+            "cuMemGetHandleForAddressRange(",
+            "hsa_amd_portable_export_dmabuf(",
+        );
+
+        // Now fix the parameter ordering for hsa_amd_portable_export_dmabuf calls
+        // HSA signature: hsa_amd_portable_export_dmabuf(void* ptr, size_t size, int* fd, uint64_t* flags)
+        // Old CUDA: cuMemGetHandleForAddressRange(&fd, ptr, size, type, flags)
+        // New HSA:  hsa_amd_portable_export_dmabuf(ptr, size, &fd, nullptr)
+
+        // Pattern for compact_mrs function
+        patched_content = patched_content.replace(
+            "hsa_amd_portable_export_dmabuf(\n      &fd,\n      reinterpret_cast<hipDeviceptr_t>(start_addr),\n      total_size,\n      /* removed - using HSA dmabuf */,\n      0);",
+            "hsa_amd_portable_export_dmabuf(\n      reinterpret_cast<void*>(start_addr),\n      total_size,\n      &fd,\n      nullptr);"
+        );
+
+        // Pattern for register_segments function
+        patched_content = patched_content.replace(
+            "hsa_amd_portable_export_dmabuf(\n            &fd,\n            reinterpret_cast<hipDeviceptr_t>(chunk_start),\n            chunk_size,\n            /* removed - using HSA dmabuf */,\n            0);",
+            "hsa_amd_portable_export_dmabuf(\n            reinterpret_cast<void*>(chunk_start),\n            chunk_size,\n            &fd,\n            nullptr);"
+        );
+
+        // More generic replacements for any other patterns
+        patched_content = patched_content
+            .replace(
+                "hsa_amd_portable_export_dmabuf(\n      &fd,",
+                "hsa_amd_portable_export_dmabuf(\n      reinterpret_cast<void*>("
+            )
+            .replace(
+                "),\n      total_size,\n      /* removed - using HSA dmabuf */,\n      0)",
+                "),\n      total_size,\n      &fd,\n      nullptr)"
+            )
+            .replace(
+                "),\n            chunk_size,\n            /* removed - using HSA dmabuf */,\n            0)",
+                "),\n            chunk_size,\n            &fd,\n            nullptr)"
+            );
+
+        // Replace result types and checks
+        patched_content = patched_content
+            .replace("CUresult cu_result", "hsa_status_t hsa_result")
+            .replace("hipError_t cu_result", "hsa_status_t hsa_result")
+            .replace(
+                "cu_result != hipSuccess",
+                "hsa_result != HSA_STATUS_SUCCESS",
+            )
+            .replace("if (cu_result", "if (hsa_result");
+
+        // Fix get_hip_pci_address_from_ptr function - handle duplicate device_ordinal
+        // This regex-like replacement handles the duplicate declaration issue
+        if patched_content.contains("int get_hip_pci_address_from_ptr") {
+            // Replace the function body to remove duplicate declaration
+            let function_pattern = "int get_hip_pci_address_from_ptr(\n    hipDeviceptr_t cuda_ptr,\n    char* pci_addr_out,\n    size_t pci_addr_size) {\n  if (!pci_addr_out || pci_addr_size < 16) {\n    return RDMAXCEL_INVALID_PARAMS;\n  }\n\n  int device_ordinal = -1;\n  int device_ordinal = -1;";
+            let function_replacement = "int get_hip_pci_address_from_ptr(\n    hipDeviceptr_t cuda_ptr,\n    char* pci_addr_out,\n    size_t pci_addr_size) {\n  if (!pci_addr_out || pci_addr_size < 16) {\n    return RDMAXCEL_INVALID_PARAMS;\n  }\n\n  int device_ordinal = -1;";
+            patched_content = patched_content.replace(function_pattern, function_replacement);
+        }
+
+        // Fix hipPointerGetAttribute enum usage
+        patched_content = patched_content.replace(
+            "hipPointerAttribute::device",
+            "HIP_POINTER_ATTRIBUTE_DEVICE_ORDINAL",
+        );
+
+        fs::write(&cpp_file, patched_content)?;
+    }
+
+    // --- Patch the Header file ---
+    let header_file = hip_src_dir.join("rdmaxcel_hip.h");
+    if header_file.exists() {
+        let content = fs::read_to_string(&header_file)?;
+        let patched_content = content
+            // Only fix CUDA API types, not custom function names
+            .replace("CUdeviceptr", "hipDeviceptr_t");
+
+        fs::write(&header_file, patched_content)?;
+    }
+
+    println!("cargo:warning=Applied ROCm 6.x (HSA dmabuf) post-processing fixes to hipified files");
     Ok(())
 }
 
@@ -134,6 +318,7 @@ fn hipify_sources(
     python_interpreter: &Path,
     src_dir: &Path,
     hip_src_dir: &Path,
+    rocm_version: (u32, u32),
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!(
         "cargo:warning=Copying sources from {} to {} for in-place hipify...",
@@ -191,7 +376,13 @@ fn hipify_sources(
         .into());
     }
 
-    patch_hipified_files(hip_src_dir)?;
+    // Apply version-specific patches
+    let (major, _minor) = rocm_version;
+    if major >= 7 {
+        patch_hipified_files_rocm7(hip_src_dir)?;
+    } else {
+        patch_hipified_files_rocm6(hip_src_dir)?;
+    }
 
     Ok(())
 }
@@ -204,13 +395,26 @@ fn main() {
     println!("cargo:rustc-link-lib=ibverbs");
     println!("cargo:rustc-link-lib=mlx5");
 
-    let (is_rocm, compute_home, compute_lib_names) =
+    let (is_rocm, compute_home, compute_lib_names, rocm_version) =
         if let Ok(rocm_home) = build_utils::validate_rocm_installation() {
-            println!("cargo:warning=Using HIP/ROCm from {}", rocm_home);
-            (true, rocm_home, vec!["amdhip64", "hsa-runtime64"])
+            let version = get_rocm_version(&rocm_home).unwrap_or((6, 0));
+            println!(
+                "cargo:warning=Using HIP/ROCm {} from {}",
+                format!("{}.{}", version.0, version.1),
+                rocm_home
+            );
+
+            // Set compile-time flag for ROCm version
+            if version.0 >= 7 {
+                println!("cargo:rustc-cfg=rocm_7_plus");
+            } else {
+                println!("cargo:rustc-cfg=rocm_6_x");
+            }
+
+            (true, rocm_home, vec!["amdhip64", "hsa-runtime64"], version)
         } else if let Ok(cuda_home) = build_utils::validate_cuda_installation() {
             println!("cargo:warning=Using CUDA from {}", cuda_home);
-            (false, cuda_home, vec!["cuda", "cudart"])
+            (false, cuda_home, vec!["cuda", "cudart"], (0, 0))
         } else {
             eprintln!("Error: Neither CUDA nor ROCm installation found!");
             build_utils::print_cuda_error_help();
@@ -304,7 +508,7 @@ fn main() {
             if is_rocm {
                 let hip_src_dir = out_path.join("hipified_src");
 
-                hipify_sources(&python_interpreter, &src_dir, &hip_src_dir)
+                hipify_sources(&python_interpreter, &src_dir, &hip_src_dir, rocm_version)
                     .expect("Failed to hipify sources");
 
                 validate_hipified_files(&hip_src_dir).expect("Hipified files validation failed");
@@ -404,6 +608,13 @@ fn main() {
                 builder = builder
                     .clang_arg("-D__HIP_PLATFORM_AMD__=1")
                     .clang_arg("-DUSE_ROCM=1");
+
+                // Add version-specific defines
+                if rocm_version.0 >= 7 {
+                    builder = builder.clang_arg("-DROCM_7_PLUS=1");
+                } else {
+                    builder = builder.clang_arg("-DROCM_6_X=1");
+                }
             }
 
             if let Some(include_dir) = &python_config.include_dir {
@@ -425,6 +636,11 @@ fn main() {
                 if is_rocm {
                     build.define("__HIP_PLATFORM_AMD__", "1");
                     build.define("USE_ROCM", "1");
+                    if rocm_version.0 >= 7 {
+                        build.define("ROCM_7_PLUS", "1");
+                    } else {
+                        build.define("ROCM_6_X", "1");
+                    }
                 }
                 build.compile("rdmaxcel");
             } else {
@@ -473,6 +689,11 @@ fn main() {
                 if is_rocm {
                     cpp_build.define("__HIP_PLATFORM_AMD__", "1");
                     cpp_build.define("USE_ROCM", "1");
+                    if rocm_version.0 >= 7 {
+                        cpp_build.define("ROCM_7_PLUS", "1");
+                    } else {
+                        cpp_build.define("ROCM_6_X", "1");
+                    }
                 }
                 for include_dir in &libtorch_include_dirs {
                     cpp_build.include(include_dir);
@@ -502,22 +723,30 @@ fn main() {
                 let cuda_lib_path = format!("{}/librdmaxcel_cuda.a", cuda_build_dir);
 
                 let compiler_output = if is_rocm {
-                    Command::new(&compiler_path)
-                        .args([
-                            "-c",
-                            cuda_source_path.to_str().unwrap(),
-                            "-o",
-                            &cuda_obj_path,
-                            "-fPIC",
-                            "-std=c++20",
-                            "-D__HIP_PLATFORM_AMD__=1",
-                            "-DUSE_ROCM=1",
-                            &format!("-I{}", compute_include_path),
-                            &format!("-I{}", code_dir.display()),
-                            &format!("-I/usr/include"),
-                            &format!("-I/usr/include/infiniband"),
-                        ])
-                        .output()
+                    let mut cmd = Command::new(&compiler_path);
+                    cmd.args([
+                        "-c",
+                        cuda_source_path.to_str().unwrap(),
+                        "-o",
+                        &cuda_obj_path,
+                        "-fPIC",
+                        "-std=c++20",
+                        "-D__HIP_PLATFORM_AMD__=1",
+                        "-DUSE_ROCM=1",
+                        &format!("-I{}", compute_include_path),
+                        &format!("-I{}", code_dir.display()),
+                        &format!("-I/usr/include"),
+                        &format!("-I/usr/include/infiniband"),
+                    ]);
+
+                    // Add version-specific defines
+                    if rocm_version.0 >= 7 {
+                        cmd.arg("-DROCM_7_PLUS=1");
+                    } else {
+                        cmd.arg("-DROCM_6_X=1");
+                    }
+
+                    cmd.output()
                 } else {
                     Command::new(&compiler_path)
                         .args([
