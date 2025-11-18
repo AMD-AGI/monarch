@@ -492,7 +492,6 @@ fn main() {
         println!("cargo:rustc-link-lib=c10");
         if is_rocm {
             println!("cargo:rustc-link-lib=c10_hip");
-            println!("cargo:rustc-link-lib=c10_cuda");
         } else {
             println!("cargo:rustc-link-lib=c10_cuda");
         }
