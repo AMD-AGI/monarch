@@ -1,0 +1,48 @@
+FROM docker.io/rocm/megatron-lm:v25.6_py312
+
+ENV USE_TENSOR_ENGINE=0
+ENV CC=clang
+ENV CXX=clang++
+
+RUN apt-get update && apt-get install -y ninja-build \
+    libunwind-dev \
+    clang
+
+WORKDIR /workspace/
+
+RUN git clone https://github.com/meta-pytorch/monarch.git
+
+WORKDIR /workspace/monarch
+
+RUN git fetch --all
+
+RUN git checkout 199aff7444b6806f1cfdce6400d44e442dcd24d7
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh  -s -- -y
+
+ENV PATH="$PATH:/root/.cargo/bin/"
+
+RUN rustup toolchain install nightly
+RUN rustup default nightly
+
+RUN pip install uv
+
+RUN uv pip install -U --system --pre torch==2.10.0.dev20251102+rocm7.0 torch torchvision --index-url https://download.pytorch.org/whl/nightly/rocm7.0
+
+RUN uv pip install --system -r build-requirements.txt
+
+RUN apt-get install lzma-dev
+
+RUN conda init bash
+
+SHELL ["conda", "run", "-n", "py_3.12", "/bin/bash", "-c"]
+
+RUN conda install -y libunwind liblzma
+
+RUN ulimit -n 2048 && uv pip install --system --no-build-isolation .
+
+WORKDIR /workspace/
+
+RUN uv pip install --system torchao
+RUN uv pip install --system git+https://github.com/pytorch/torchtitan.git
+RUN uv pip install --system pandas==2.3.3
