@@ -40,7 +40,6 @@ docker exec \
  LD_LIBRARY_PATH=/opt/ompi/lib:/opt/rocm/lib:/usr/local/lib::/opt/rocm/lib/:/usr/lib/x86_64-linux-gnu/ python /tmp/custom_bootstrap_exec.py ; \
  echo \$(date) [P${HYPERACTOR_MESH_INDEX}] Completed"
 
-echo "after docker exec"
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     (   
         flock -x 200
